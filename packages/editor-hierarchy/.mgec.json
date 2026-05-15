@@ -1,0 +1,14 @@
+{
+  "id": "@mge/editor-hierarchy",
+  "name": "MGE Editor Hierarchy",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["editor"],
+  "requires": {
+    "@mge/mgengineui": "^0.1.0",
+    "@mge/editor-core": "^0.1.0"
+  },
+  "requiresFeatures": ["service:mgengineui", "service:editor"],
+  "providesFeatures": ["editor-panel:hierarchy"]
+}
+

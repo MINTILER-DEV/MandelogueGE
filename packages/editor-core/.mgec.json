@@ -1,0 +1,16 @@
+{
+  "id": "@mge/editor-core",
+  "name": "MGE Editor Core",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["editor"],
+  "requires": {
+    "@mge/mgengineui": "^0.1.0",
+    "@mge/core": "^0.1.0",
+    "@mge/scene": "^0.1.0",
+    "@mge/ecs": "^0.1.0"
+  },
+  "requiresFeatures": ["service:mgengineui", "service:scene", "service:ecs"],
+  "providesFeatures": ["service:editor", "service:workspace"]
+}
+

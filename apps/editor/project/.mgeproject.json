@@ -1,0 +1,24 @@
+{
+  "name": "MandelogueGE Editor",
+  "type": "engine-editor",
+  "engine": "MandelogueGE",
+  "mainScene": "Editor Preview Scene",
+  "components": {
+    "@mge/core": "^0.1.0",
+    "@mge/time": "^0.1.0",
+    "@mge/scene": "^0.1.0",
+    "@mge/ecs": "^0.1.0",
+    "@mge/input": "^0.1.0",
+    "@mge/scripting-ts": "^0.1.0",
+    "@mge/renderer-canvas2d": "^0.1.0",
+    "@mge/demo-square": "^0.1.0",
+    "@mge/mgengineui": "^0.1.0",
+    "@mge/editor-core": "^0.1.0",
+    "@mge/editor-viewport": "^0.1.0",
+    "@mge/editor-hierarchy": "^0.1.0",
+    "@mge/editor-inspector": "^0.1.0",
+    "@mge/editor-console": "^0.1.0",
+    "@mge/editor-assets": "^0.1.0"
+  }
+}
+

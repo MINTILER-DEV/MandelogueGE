@@ -19,6 +19,13 @@
     "paths": {
       "@mge/kernel": ["packages/kernel/src/index.ts"],
       "@mge/core": ["packages/core/src/index.ts"],
+      "@mge/mgengineui": ["packages/mgengineui/src/index.ts"],
+      "@mge/editor-core": ["packages/editor-core/src/index.ts"],
+      "@mge/editor-viewport": ["packages/editor-viewport/src/index.ts"],
+      "@mge/editor-hierarchy": ["packages/editor-hierarchy/src/index.ts"],
+      "@mge/editor-inspector": ["packages/editor-inspector/src/index.ts"],
+      "@mge/editor-console": ["packages/editor-console/src/index.ts"],
+      "@mge/editor-assets": ["packages/editor-assets/src/index.ts"],
       "@mge/scripting-ts": ["packages/scripting-ts/src/index.ts"],
       "@mge/time": ["packages/time/src/index.ts"],
       "@mge/scene": ["packages/scene/src/index.ts"],

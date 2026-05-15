@@ -61,6 +61,18 @@ const demoSquareModule: MGECModule = {
 
     ecs.registerComponentFactory({
       create: createSquare,
+      matches(component) {
+        return component instanceof SquareComponent;
+      },
+      serialize(component) {
+        const square = component as SquareComponent;
+
+        return {
+          color: square.color,
+          height: square.height,
+          width: square.width
+        };
+      },
       type: "Square"
     } satisfies ComponentFactory);
     ctx.log.info("Registered the Square component.");

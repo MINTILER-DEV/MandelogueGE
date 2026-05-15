@@ -1,0 +1,8 @@
+{
+  "layout": {
+    "left": ["hierarchy"],
+    "center": ["viewport"],
+    "right": ["inspector"],
+    "bottom": ["console", "assets"]
+  }
+}

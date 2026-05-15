@@ -65,6 +65,7 @@ export interface MGECModule {
 }
 
 export interface MGEKernelOptions {
+  diagnosticSink?: (diagnostic: MGEKernelDiagnostic) => void;
   emitDiagnosticsToConsole?: boolean;
   initialServices?: Record<string, unknown>;
   manifestNames?: string[];
@@ -487,6 +488,7 @@ export class MGEKernel {
 
   #consumeDiagnostic(diagnostic: MGEKernelDiagnostic): void {
     this.#diagnostics.push(diagnostic);
+    this.#options.diagnosticSink?.(diagnostic);
 
     if (!this.#options.emitDiagnosticsToConsole) {
       return;

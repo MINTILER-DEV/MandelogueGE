@@ -135,6 +135,17 @@ const scriptingTsModule: MGECModule = {
     ctx.services.provide("script-runtime", scriptRuntime, ctx.component.id);
     ctx.services.require<ECSService>("ecs").registerComponentFactory({
       create: createScriptComponent,
+      matches(component) {
+        return component instanceof ScriptComponent;
+      },
+      serialize(component) {
+        const scriptComponent = component as ScriptComponent;
+
+        return {
+          properties: { ...scriptComponent.properties },
+          script: scriptComponent.script
+        };
+      },
       type: "Script"
     } satisfies ComponentFactory);
     ctx.log.info(`Registered TypeScript scripting with ${scripts.size} script source(s).`);

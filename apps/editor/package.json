@@ -1,0 +1,30 @@
+{
+  "name": "@mge/editor-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mge/core": "workspace:*",
+    "@mge/demo-square": "workspace:*",
+    "@mge/ecs": "workspace:*",
+    "@mge/editor-assets": "workspace:*",
+    "@mge/editor-console": "workspace:*",
+    "@mge/editor-core": "workspace:*",
+    "@mge/editor-hierarchy": "workspace:*",
+    "@mge/editor-inspector": "workspace:*",
+    "@mge/editor-viewport": "workspace:*",
+    "@mge/input": "workspace:*",
+    "@mge/kernel": "workspace:*",
+    "@mge/mgengineui": "workspace:*",
+    "@mge/renderer-canvas2d": "workspace:*",
+    "@mge/scene": "workspace:*",
+    "@mge/scripting-ts": "workspace:*",
+    "@mge/time": "workspace:*"
+  }
+}
+

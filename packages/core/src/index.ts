@@ -30,6 +30,9 @@ export interface KeyboardInputLike {
 
 export interface ComponentFactory {
   create(data?: Record<string, unknown>): Component;
+  displayName?: string;
+  matches?(component: Component): boolean;
+  serialize?(component: Component): Record<string, unknown>;
   type: string;
 }
 
@@ -165,6 +168,14 @@ export class Entity {
   getComponents(): readonly Component[] {
     return this.components;
   }
+
+  removeComponent(component: Component): void {
+    const index = this.components.indexOf(component);
+
+    if (index >= 0) {
+      this.components.splice(index, 1);
+    }
+  }
 }
 
 export class Scene {
@@ -202,6 +213,23 @@ export class Scene {
       entity.components.filter((component) => component instanceof type) as T[]
     );
   }
+
+  clear(): void {
+    for (const entity of this.entities) {
+      entity.scene = null;
+    }
+
+    this.entities.length = 0;
+  }
+
+  removeEntity(entity: Entity): void {
+    const index = this.entities.indexOf(entity);
+
+    if (index >= 0) {
+      this.entities.splice(index, 1);
+      entity.scene = null;
+    }
+  }
 }
 
 export interface RuntimeService {
@@ -209,9 +237,12 @@ export interface RuntimeService {
   createScene(name: string, id?: string): Scene;
   getActiveScene(): Scene;
   getScene(): Scene | null;
+  isDisposed(): boolean;
+  isRunning(): boolean;
   registerSystem(system: RuntimeSystem): void;
   setActiveScene(scene: Scene): void;
   startLoop(): void;
+  dispose(): void;
   stopLoop(): void;
   tick(timestampMs?: number): void;
 }
@@ -226,6 +257,7 @@ export class Runtime implements RuntimeService {
   #elapsed = 0;
   #frame = 0;
   #lastTimestampMs: number | null = null;
+  #running = false;
 
   constructor(services: ServiceRegistry, frameDriver: RuntimeFrameDriver) {
     this.#services = services;
@@ -252,6 +284,14 @@ export class Runtime implements RuntimeService {
     return this.#activeScene;
   }
 
+  isDisposed(): boolean {
+    return this.#disposed;
+  }
+
+  isRunning(): boolean {
+    return this.#running;
+  }
+
   registerSystem(system: RuntimeSystem): void {
     this.#systems.push(system);
     this.#systems.sort((left, right) => (left.priority ?? 0) - (right.priority ?? 0));
@@ -263,16 +303,18 @@ export class Runtime implements RuntimeService {
   }
 
   startLoop(): void {
-    if (this.#disposed || this.#animationHandle !== null) {
+    if (this.#disposed || this.#running) {
       return;
     }
+
+    this.#running = true;
 
     const schedule = () => {
       this.#animationHandle = this.#frameDriver.requestAnimationFrame((timestampMs) => {
         this.#animationHandle = null;
         this.tick(timestampMs);
 
-        if (!this.#disposed) {
+        if (this.#running && !this.#disposed) {
           schedule();
         }
       });
@@ -282,12 +324,17 @@ export class Runtime implements RuntimeService {
   }
 
   stopLoop(): void {
-    this.#disposed = true;
+    this.#running = false;
 
     if (this.#animationHandle !== null) {
       this.#frameDriver.cancelAnimationFrame(this.#animationHandle);
       this.#animationHandle = null;
     }
+  }
+
+  dispose(): void {
+    this.stopLoop();
+    this.#disposed = true;
   }
 
   tick(timestampMs = this.#frameDriver.now()): void {
@@ -432,7 +479,7 @@ const coreModule: MGECModule = {
   id: "@mge/core",
 
   dispose(ctx) {
-    getRuntime(ctx).stopLoop();
+    getRuntime(ctx).dispose();
     ctx.log.info("Runtime stopped.");
   },
 
@@ -451,6 +498,20 @@ const coreModule: MGECModule = {
     ctx.services.provide("runtime", runtime, ctx.component.id);
     ctx.extensions.register("mge:component-factory", {
       create: transformFromData,
+      matches(component) {
+        return component instanceof Transform;
+      },
+      serialize(component) {
+        const transform = component as Transform;
+
+        return {
+          rotation: transform.rotation,
+          scaleX: transform.scaleX,
+          scaleY: transform.scaleY,
+          x: transform.x,
+          y: transform.y
+        };
+      },
       type: "Transform"
     } satisfies ComponentFactory);
     ctx.log.info("Registered the runtime loop and Transform component.");

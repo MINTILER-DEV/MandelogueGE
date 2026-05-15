@@ -1,0 +1,20 @@
+{
+  "id": "@mge/mgengineui",
+  "name": "MGEngineUI",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["editor"],
+  "providesFeatures": [
+    "service:mgengineui",
+    "ui:panel",
+    "ui:dock",
+    "ui:button",
+    "ui:tree",
+    "ui:tabs",
+    "ui:menu",
+    "ui:modal",
+    "ui:command-palette",
+    "ui:property-grid"
+  ]
+}
+

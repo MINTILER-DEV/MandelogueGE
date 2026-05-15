@@ -1,6 +1,6 @@
 # MandelogueGE
 
-Phase 0 through Phase 3 are scaffolded here as a TypeScript `pnpm` monorepo.
+Phase 0 through Phase 5 are scaffolded here as a TypeScript `pnpm` monorepo.
 
 ## Implemented
 
@@ -8,9 +8,11 @@ Phase 0 through Phase 3 are scaffolded here as a TypeScript `pnpm` monorepo.
 - `@mge/kernel` with project/manifest parsing, dependency resolution, feature checks, lifecycle execution, and diagnostics
 - Runtime MGECs for `@mge/core`, `@mge/time`, `@mge/scene`, `@mge/ecs`, `@mge/input`, and `@mge/renderer-canvas2d`
 - `@mge/scripting-ts` with a user-facing `Script` API and script component loader
+- `@mge/mgengineui` plus editor MGECs for viewport, hierarchy, inspector, console, and assets
 - `@mge/demo-square` runtime proof component
 - `examples/kernel-proof/.mgeproject.json` plus `pnpm demo:kernel`
 - Browser runtime proof app with `pnpm dev:runtime`
+- Browser editor app with `pnpm dev:editor`
 
 ## Commands
 
@@ -20,4 +22,5 @@ pnpm build
 pnpm test
 pnpm demo:kernel
 pnpm dev:runtime
+pnpm dev:editor
 ```
