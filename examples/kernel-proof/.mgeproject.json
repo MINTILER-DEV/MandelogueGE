@@ -1,0 +1,10 @@
+{
+  "name": "Kernel Proof",
+  "type": "game",
+  "engine": "MandelogueGE",
+  "components": {
+    "@mge/core": "^0.1.0",
+    "@mge/test-package": "^0.1.0"
+  }
+}
+

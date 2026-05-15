@@ -1,0 +1,13 @@
+{
+  "id": "@mge/test-package",
+  "name": "MGE Test Package",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["runtime"],
+  "requires": {
+    "@mge/core": "^0.1.0"
+  },
+  "requiresFeatures": ["service:core"],
+  "providesFeatures": ["service:test-package"]
+}
+

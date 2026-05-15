@@ -1,0 +1,9 @@
+{
+  "id": "@mge/core",
+  "name": "MGE Core",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["runtime"],
+  "providesFeatures": ["service:core"]
+}
+
