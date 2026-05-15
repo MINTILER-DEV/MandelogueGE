@@ -388,6 +388,16 @@ function createTextEditorService(dependencies: {
         theme: "mge-monaco",
         wordWrap: "off"
       });
+      codeEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+        void textEditor.saveActiveFile().then((savedFile) => {
+          if (!savedFile) {
+            editor.saveProject();
+          }
+        });
+      });
+      codeEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP, () => {
+        ui.commands.openPalette();
+      });
     }
 
     return codeEditor;
@@ -636,13 +646,19 @@ function registerTextEditorCommands(
   });
   ui.commands.register({
     id: "editor-text.save-active",
+    keybinding: "Ctrl+S",
     run: () => {
-      void textEditor.saveActiveFile();
+      void textEditor.saveActiveFile().then((savedFile) => {
+        if (!savedFile) {
+          editor.saveProject();
+        }
+      });
     },
     title: "Save Active File"
   });
   ui.commands.register({
     id: "editor-text.find",
+    keybinding: "Ctrl+F",
     run: () => {
       textEditor.find();
     },
@@ -650,6 +666,7 @@ function registerTextEditorCommands(
   });
   ui.commands.register({
     id: "editor-text.replace",
+    keybinding: "Ctrl+H",
     run: () => {
       textEditor.replace();
     },

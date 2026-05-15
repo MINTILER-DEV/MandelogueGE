@@ -168,27 +168,34 @@ function renderEntityHeader(
           return;
         }
 
-        const response = globalThis.prompt(
-          `Add component to "${entity.name}". Enter one of:\n${availableTypes.join("\n")}`,
-          availableTypes[0]
-        );
+        ui.modal.open({
+          render(modalUi) {
+            const modalStack = document.createElement("div");
+            modalStack.className = "mge-stack";
+            const caption = document.createElement("p");
+            caption.className = "mge-empty";
+            caption.textContent = `Add a component to "${entity.name}".`;
+            modalStack.append(caption);
 
-        if (!response) {
-          return;
-        }
+            for (const componentType of availableTypes) {
+              modalStack.append(
+                modalUi.button.create({
+                  label: componentType,
+                  onClick: () => {
+                    ecs.addComponent(entity, componentType);
+                    editor.log("info", `Added ${componentType} to "${entity.name}".`, "@mge/editor-inspector");
+                    modalUi.modal.close();
+                    editor.refresh();
+                  },
+                  variant: "ghost"
+                })
+              );
+            }
 
-        const componentType = availableTypes.find(
-          (candidate) => candidate.toLowerCase() === response.trim().toLowerCase()
-        );
-
-        if (!componentType) {
-          editor.log("warn", `Unknown component type "${response}".`, "@mge/editor-inspector");
-          return;
-        }
-
-        ecs.addComponent(entity, componentType);
-        editor.log("info", `Added ${componentType} to "${entity.name}".`, "@mge/editor-inspector");
-        editor.refresh();
+            return modalStack;
+          },
+          title: "Add Component"
+        });
       }
     })
   );

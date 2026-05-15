@@ -416,6 +416,7 @@ function registerEditorChrome(ui: MGEngineUIService, editor: EditorService, proj
   });
   ui.commands.register({
     id: "editor.palette",
+    keybinding: "Ctrl+Shift+P",
     run: () => {
       ui.commands.openPalette();
     },

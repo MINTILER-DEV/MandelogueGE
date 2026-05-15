@@ -1,0 +1,23 @@
+{
+  "name": "@mge/editor-plugin-manager",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", ".mgec.json"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
+  },
+  "dependencies": {
+    "@mge/editor-core": "workspace:*",
+    "@mge/kernel": "workspace:*",
+    "@mge/mgengineui": "workspace:*"
+  }
+}

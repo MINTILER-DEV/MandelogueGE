@@ -24,6 +24,7 @@
       "@mge/editor-viewport": ["packages/editor-viewport/src/index.ts"],
       "@mge/editor-hierarchy": ["packages/editor-hierarchy/src/index.ts"],
       "@mge/editor-inspector": ["packages/editor-inspector/src/index.ts"],
+      "@mge/editor-plugin-manager": ["packages/editor-plugin-manager/src/index.ts"],
       "@mge/editor-console": ["packages/editor-console/src/index.ts"],
       "@mge/editor-assets": ["packages/editor-assets/src/index.ts"],
       "@mge/editor-text": ["packages/editor-text/src/index.ts"],

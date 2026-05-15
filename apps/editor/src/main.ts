@@ -8,6 +8,7 @@ import editorConsoleManifest from "../../../packages/editor-console/.mgec.json" 
 import editorCoreManifest from "../../../packages/editor-core/.mgec.json" with { type: "json" };
 import editorHierarchyManifest from "../../../packages/editor-hierarchy/.mgec.json" with { type: "json" };
 import editorInspectorManifest from "../../../packages/editor-inspector/.mgec.json" with { type: "json" };
+import editorPluginManagerManifest from "../../../packages/editor-plugin-manager/.mgec.json" with { type: "json" };
 import editorTextManifest from "../../../packages/editor-text/.mgec.json" with { type: "json" };
 import editorViewportManifest from "../../../packages/editor-viewport/.mgec.json" with { type: "json" };
 import inputManifest from "../../../packages/input/.mgec.json" with { type: "json" };
@@ -26,6 +27,7 @@ import editorConsoleModule from "@mge/editor-console";
 import editorCoreModule, { type EditorProjectFile } from "@mge/editor-core";
 import editorHierarchyModule from "@mge/editor-hierarchy";
 import editorInspectorModule from "@mge/editor-inspector";
+import editorPluginManagerModule from "@mge/editor-plugin-manager";
 import editorTextModule from "@mge/editor-text";
 import editorViewportModule from "@mge/editor-viewport";
 import ecsModule from "@mge/ecs";
@@ -92,6 +94,7 @@ const workspaceComponents: MGEComponentSource[] = [
   { manifest: manifest(editorViewportManifest), module: editorViewportModule },
   { manifest: manifest(editorHierarchyManifest), module: editorHierarchyModule },
   { manifest: manifest(editorInspectorManifest), module: editorInspectorModule },
+  { manifest: manifest(editorPluginManagerManifest), module: editorPluginManagerModule },
   { manifest: manifest(editorConsoleManifest), module: editorConsoleModule },
   { manifest: manifest(editorAssetsManifest), module: editorAssetsModule },
   { manifest: manifest(editorTextManifest), module: editorTextModule }
@@ -135,6 +138,7 @@ async function main(): Promise<void> {
       "host:script-sources": {
         "./scripts/PlayerController.ts": PlayerController
       },
+      "host:workspace-component-manifests": workspaceComponents.map((component) => component.manifest),
       "host:viewport-canvas": editorCanvas
     },
     projectManifest: projectManifest as MGEProjectManifest,

@@ -1,8 +1,8 @@
 {
   "layout": {
-    "left": ["hierarchy"],
+    "left": ["assets", "hierarchy", "plugin-manager"],
     "center": ["viewport", "text-editor"],
     "right": ["inspector"],
-    "bottom": ["console", "assets"]
+    "bottom": ["console"]
   }
 }

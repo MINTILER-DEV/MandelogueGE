@@ -17,6 +17,7 @@ export interface MGEngineUIBranding {
 
 export interface MGEngineUICommandDefinition {
   id: string;
+  keybinding?: string | string[];
   keywords?: string[];
   run(): void;
   title: string;
@@ -57,7 +58,9 @@ export interface MGEngineUIPropertyRowDefinition {
 
 export interface MGEngineUITreeNode {
   children?: MGEngineUITreeNode[];
+  icon?: string;
   label: string;
+  onOpen?(): void;
   onSelect?(): void;
   selected?: boolean;
   trailing?: string;
@@ -71,6 +74,7 @@ export interface MGEngineUIService {
     closePalette(): void;
     list(): MGEngineUICommandDefinition[];
     openPalette(): void;
+    run(commandId: string): boolean;
     register(command: MGEngineUICommandDefinition): void;
   };
   invalidate(): void;
@@ -86,6 +90,7 @@ export interface MGEngineUIService {
   panels: {
     applyLayout(layout: Partial<Record<PanelZone, string[]>>): void;
     getLayout(): Record<PanelZone, string[]>;
+    getZone(panelId: string): PanelZone | null;
     list(): MGEngineUIPanelDefinition[];
     move(panelId: string, zone: PanelZone): void;
     register(panel: MGEngineUIPanelDefinition): void;
@@ -147,6 +152,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
     title: "MGEngineUI"
   };
   let mounted = false;
+  let shortcutsBound = false;
   let openMenuId: string | null = null;
   let paletteOpen = false;
   let paletteQuery = "";
@@ -202,6 +208,16 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
         paletteOpen = true;
         ui.invalidate();
       },
+      run(commandId) {
+        const command = commands.get(commandId);
+
+        if (!command) {
+          return false;
+        }
+
+        command.run();
+        return true;
+      },
       register(command) {
         commands.set(command.id, command);
       }
@@ -232,6 +248,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
     mount() {
       mounted = true;
       ensureStyles(root.ownerDocument);
+      bindGlobalShortcuts();
       render();
     },
     panels: {
@@ -249,6 +266,21 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
       },
       getLayout() {
         return structuredClone(layout);
+      },
+      getZone(panelId) {
+        const panel = panels.get(panelId);
+
+        if (!panel) {
+          return null;
+        }
+
+        for (const zone of Object.keys(layout) as PanelZone[]) {
+          if (layout[zone].includes(panelId)) {
+            return zone;
+          }
+        }
+
+        return panel.zone ?? "center";
       },
       list() {
         return [...panels.values()].sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
@@ -356,6 +388,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
     shell.className = "mge-shell";
     shell.append(renderTopbar());
     shell.append(renderWorkspace());
+    shell.append(renderStatusbar());
 
     if (paletteOpen) {
       shell.append(renderCommandPalette());
@@ -402,7 +435,20 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
     for (const command of matches) {
       const button = document.createElement("button");
       button.className = "mge-palette__item";
-      button.textContent = command.title;
+      const label = document.createElement("span");
+      label.className = "mge-command-label";
+      label.textContent = command.title;
+      button.append(label);
+
+      const shortcut = formatCommandKeybinding(command);
+
+      if (shortcut) {
+        const shortcutLabel = document.createElement("span");
+        shortcutLabel.className = "mge-command-shortcut";
+        shortcutLabel.textContent = shortcut;
+        button.append(shortcutLabel);
+      }
+
       button.addEventListener("click", () => {
         ui.commands.closePalette();
         command.run();
@@ -466,19 +512,21 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
       return panelRoot;
     }
 
-    const tabs = document.createElement("div");
-    tabs.className = "mge-tabs";
+    if (zone !== "left") {
+      const tabs = document.createElement("div");
+      tabs.className = "mge-tabs";
 
-    for (const panelId of panelIds) {
-      const panel = panels.get(panelId) as MGEngineUIPanelDefinition;
-      const button = document.createElement("button");
-      button.className = panelId === activeByZone[zone] ? "mge-tab is-active" : "mge-tab";
-      button.textContent = panel.title;
-      button.addEventListener("click", () => ui.panels.setActive(panelId));
-      tabs.append(button);
+      for (const panelId of panelIds) {
+        const panel = panels.get(panelId) as MGEngineUIPanelDefinition;
+        const button = document.createElement("button");
+        button.className = panelId === activeByZone[zone] ? "mge-tab is-active" : "mge-tab";
+        button.textContent = panel.title;
+        button.addEventListener("click", () => ui.panels.setActive(panelId));
+        tabs.append(button);
+      }
+
+      panelRoot.append(tabs);
     }
-
-    panelRoot.append(tabs);
 
     const activePanelId = activeByZone[zone] ?? panelIds[0] ?? null;
     const panel = activePanelId ? panels.get(activePanelId) : null;
@@ -527,19 +575,10 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
 
   function renderTopbar(): HTMLElement {
     const bar = document.createElement("header");
-    bar.className = "mge-topbar";
-
-    const brand = document.createElement("div");
-    brand.className = "mge-brand";
-    const title = document.createElement("strong");
-    title.textContent = branding.title;
-    const subtitle = document.createElement("span");
-    subtitle.textContent = branding.subtitle ?? "";
-    brand.append(title, subtitle);
-    bar.append(brand);
+    bar.className = "mge-titlebar";
 
     const menuRow = document.createElement("div");
-    menuRow.className = "mge-menu-row";
+    menuRow.className = "mge-titlebar__menus";
 
     for (const menu of ui.menus.list()) {
       const wrapper = document.createElement("div");
@@ -576,14 +615,20 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
 
     bar.append(menuRow);
 
+    const title = document.createElement("div");
+    title.className = "mge-titlebar__title";
+    title.textContent = branding.subtitle ? `${branding.title} - ${branding.subtitle}` : branding.title;
+    bar.append(title);
+
     const toolbar = document.createElement("div");
-    toolbar.className = "mge-toolbar";
+    toolbar.className = "mge-titlebar__actions";
 
     for (const command of ui.commands.list().filter((candidate) => candidate.toolbar)) {
       toolbar.append(
         ui.button.create({
           label: command.title,
           onClick: command.run,
+          title: formatCommandTooltip(command),
           variant: "ghost"
         })
       );
@@ -593,17 +638,28 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
       ui.button.create({
         label: "Palette",
         onClick: () => ui.commands.openPalette(),
+        title: formatCommandTooltip(commands.get("editor.palette") ?? null),
         variant: "accent"
       })
     );
     bar.append(toolbar);
 
-    const status = document.createElement("div");
-    status.className = "mge-status";
-    status.textContent = statusText;
-    bar.append(status);
-
     return bar;
+  }
+
+  function renderStatusbar(): HTMLElement {
+    const statusbar = document.createElement("footer");
+    statusbar.className = "mge-statusbar";
+
+    const projectLabel = document.createElement("span");
+    projectLabel.textContent = branding.subtitle ?? branding.title;
+    statusbar.append(projectLabel);
+
+    const modeLabel = document.createElement("span");
+    modeLabel.textContent = statusText;
+    statusbar.append(modeLabel);
+
+    return statusbar;
   }
 
   function renderWorkspace(): HTMLElement {
@@ -611,6 +667,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
     workspace.className = "mge-workspace";
     applyWorkspaceSizes(workspace);
     workspace.append(
+      renderActivityRail(),
       renderPanel("left"),
       createResizeHandle("left", workspace),
       renderPanel("center"),
@@ -620,6 +677,30 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
       renderPanel("bottom")
     );
     return workspace;
+  }
+
+  function renderActivityRail(): HTMLElement {
+    const rail = document.createElement("aside");
+    rail.className = "mge-activity-rail";
+    rail.dataset.zone = "left";
+    const panelIds = layout.left.filter((panelId) => panels.has(panelId));
+
+    if (panelIds.length === 0) {
+      return rail;
+    }
+
+    for (const panelId of panelIds) {
+      const panel = panels.get(panelId) as MGEngineUIPanelDefinition;
+      const button = document.createElement("button");
+      button.className = panelId === activeByZone.left ? "mge-activity-button is-active" : "mge-activity-button";
+      button.textContent = abbreviationForPanel(panel.title);
+      button.title = panel.title;
+      button.type = "button";
+      button.addEventListener("click", () => ui.panels.setActive(panelId));
+      rail.append(button);
+    }
+
+    return rail;
   }
 
   function applyWorkspaceSizes(workspace: HTMLElement): void {
@@ -681,6 +762,55 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
 
     documentRef.addEventListener("pointermove", onPointerMove);
     documentRef.addEventListener("pointerup", stop);
+  }
+
+  function bindGlobalShortcuts(): void {
+    if (shortcutsBound) {
+      return;
+    }
+
+    shortcutsBound = true;
+    root.ownerDocument.defaultView?.addEventListener("keydown", handleGlobalKeydown);
+  }
+
+  function handleGlobalKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) {
+      return;
+    }
+
+    if (event.key === "Escape" && paletteOpen) {
+      event.preventDefault();
+      ui.commands.closePalette();
+      return;
+    }
+
+    const focusedElement = root.ownerDocument.activeElement;
+    const textFieldFocused =
+      focusedElement instanceof HTMLInputElement ||
+      focusedElement instanceof HTMLTextAreaElement ||
+      Boolean((focusedElement as HTMLElement | null)?.isContentEditable);
+
+    if (textFieldFocused && !(event.ctrlKey || event.metaKey || event.altKey)) {
+      return;
+    }
+
+    for (const command of commands.values()) {
+      for (const candidate of resolveCommandKeybindings(command)) {
+        if (!matchesKeybinding(candidate, event)) {
+          continue;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (paletteOpen) {
+          ui.commands.closePalette();
+        }
+
+        command.run();
+        return;
+      }
+    }
   }
 
   return ui;
@@ -791,22 +921,22 @@ function ensureStyles(documentRef: Document): void {
   style.id = STYLE_ID;
   style.textContent = `
     :root {
-      --mge-bg: #262626;
-      --mge-bg-alt: #303030;
-      --mge-bg-strong: #1b1b1b;
-      --mge-panel: #353535;
-      --mge-panel-alt: #2b2b2b;
-      --mge-panel-strong: #202020;
-      --mge-line: #171717;
-      --mge-line-soft: #484848;
-      --mge-text: #d4d4d4;
-      --mge-text-muted: #989898;
-      --mge-accent: #4c7ca5;
-      --mge-accent-strong: #2f5f88;
-      --mge-accent-soft: rgba(76, 124, 165, 0.24);
+      --mge-bg: #1e1e1e;
+      --mge-bg-alt: #252526;
+      --mge-bg-strong: #181818;
+      --mge-panel: #252526;
+      --mge-panel-alt: #1f1f1f;
+      --mge-panel-strong: #1a1a1a;
+      --mge-line: #111111;
+      --mge-line-soft: #3d3d3d;
+      --mge-text: #cccccc;
+      --mge-text-muted: #8b8b8b;
+      --mge-accent: #0e639c;
+      --mge-accent-strong: #1177bb;
+      --mge-accent-soft: rgba(14, 99, 156, 0.28);
       --mge-danger: #b85a5a;
       color: var(--mge-text);
-      font-family: Tahoma, "Segoe UI", sans-serif;
+      font-family: "Segoe UI", Tahoma, sans-serif;
       font-size: 12px;
     }
     * {
@@ -833,46 +963,61 @@ function ensureStyles(documentRef: Document): void {
       width: 100%;
     }
     .mge-shell {
-      background: #2b2b2b;
+      background: var(--mge-bg);
       color: var(--mge-text);
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto 1fr auto;
       height: 100vh;
       min-height: 100vh;
     }
-    .mge-topbar {
+    .mge-titlebar {
       align-items: center;
-      border-bottom: 1px solid var(--mge-line);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      background: var(--mge-bg-strong);
+      border-bottom: 1px solid #000;
       display: grid;
-      gap: 0.4rem 0.75rem;
-      grid-template-columns: minmax(10rem, auto) 1fr auto auto;
-      padding: 0.35rem 0.5rem;
+      grid-template-columns: auto minmax(12rem, 1fr) auto;
+      min-height: 2.3rem;
+      padding: 0 0.6rem;
       position: sticky;
       top: 0;
       z-index: 10;
     }
-    .mge-brand {
-      display: grid;
-      gap: 0.05rem;
+    .mge-titlebar__menus,
+    .mge-titlebar__actions {
+      align-items: center;
+      display: flex;
+      gap: 0.2rem;
+      min-width: 0;
     }
-    .mge-brand strong {
-      font-size: 0.95rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
+    .mge-titlebar__title,
+    .mge-empty {
+      color: var(--mge-text-muted);
+      font-size: 0.9rem;
     }
-    .mge-brand span,
-    .mge-status,
+    .mge-titlebar__title {
+      overflow: hidden;
+      padding: 0 1rem;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mge-statusbar {
+      align-items: center;
+      background: var(--mge-accent);
+      color: #ffffff;
+      display: flex;
+      gap: 1rem;
+      justify-content: space-between;
+      min-height: 1.5rem;
+      padding: 0 0.55rem;
+    }
+    .mge-statusbar span,
     .mge-empty {
       color: var(--mge-text-muted);
       font-size: 0.82rem;
     }
-    .mge-menu-row,
-    .mge-toolbar {
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.25rem;
+    .mge-statusbar span {
+      color: #ffffff;
     }
     .mge-menu {
       position: relative;
@@ -882,12 +1027,12 @@ function ensureStyles(documentRef: Document): void {
     .mge-tab,
     .mge-palette__item,
     .mge-menu__item {
-      background: #373737;
-      border: 1px solid var(--mge-line);
+      background: #2a2d2e;
+      border: 1px solid transparent;
       color: var(--mge-text);
       cursor: pointer;
-      min-height: 1.95rem;
-      padding: 0.3rem 0.65rem;
+      min-height: 1.8rem;
+      padding: 0.2rem 0.55rem;
       text-align: left;
     }
     .mge-menu__trigger:hover,
@@ -899,17 +1044,17 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-ui-button--accent {
       background: var(--mge-accent-strong);
-      border-color: #244662;
+      border-color: #0d4f7a;
     }
     .mge-ui-button--ghost,
     .mge-tab.is-active {
-      background: #404040;
+      background: #2f3136;
     }
     .mge-tab.is-active {
-      box-shadow: inset 0 2px 0 var(--mge-accent);
+      box-shadow: inset 0 1px 0 var(--mge-accent), inset 0 -1px 0 var(--mge-accent);
     }
     .mge-menu__dropdown {
-      background: #2b2b2b;
+      background: var(--mge-bg-alt);
       border: 1px solid var(--mge-line);
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
       display: grid;
@@ -920,6 +1065,7 @@ function ensureStyles(documentRef: Document): void {
       top: calc(100% + 0.2rem);
     }
     .mge-workspace {
+      --mge-activity-size: 3rem;
       --mge-bottom-size: 180px;
       --mge-left-size: 248px;
       --mge-right-size: 300px;
@@ -927,10 +1073,11 @@ function ensureStyles(documentRef: Document): void {
       background: var(--mge-bg-strong);
       display: grid;
       grid-template-areas:
-        "left left-resize center right-resize right"
-        "bottom-resize bottom-resize bottom-resize bottom-resize bottom-resize"
-        "bottom bottom bottom bottom bottom";
+        "activity left left-resize center right-resize right"
+        "activity bottom-resize bottom-resize bottom-resize bottom-resize bottom-resize"
+        "activity bottom bottom bottom bottom bottom";
       grid-template-columns:
+        var(--mge-activity-size)
         minmax(${MIN_SIDE_PANEL_SIZE}px, var(--mge-left-size))
         var(--mge-splitter-size)
         minmax(0, 1fr)
@@ -938,6 +1085,35 @@ function ensureStyles(documentRef: Document): void {
         minmax(${MIN_SIDE_PANEL_SIZE}px, var(--mge-right-size));
       grid-template-rows: minmax(0, 1fr) var(--mge-splitter-size) minmax(${MIN_BOTTOM_PANEL_SIZE}px, var(--mge-bottom-size));
       min-height: 0;
+    }
+    .mge-activity-rail {
+      background: var(--mge-bg-strong);
+      border-right: 1px solid #000;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      grid-area: activity;
+      padding: 0.35rem 0.25rem;
+    }
+    .mge-activity-button {
+      align-items: center;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--mge-text-muted);
+      cursor: pointer;
+      display: flex;
+      font-size: 0.72rem;
+      font-weight: 700;
+      height: 2.1rem;
+      justify-content: center;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .mge-activity-button.is-active {
+      background: #252526;
+      border-color: #000;
+      color: var(--mge-text);
+      box-shadow: inset 2px 0 0 var(--mge-accent);
     }
     .mge-panel-zone {
       background: var(--mge-panel);
@@ -1000,7 +1176,7 @@ function ensureStyles(documentRef: Document): void {
       user-select: none;
     }
     .mge-tabs {
-      background: #252525;
+      background: #1f1f1f;
       border-bottom: 1px solid var(--mge-line);
       display: flex;
       gap: 1px;
@@ -1016,7 +1192,7 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-panel-frame__header {
       align-items: center;
-      background: #343434;
+      background: #252526;
       border-bottom: 1px solid var(--mge-line);
       display: flex;
       justify-content: space-between;
@@ -1025,7 +1201,7 @@ function ensureStyles(documentRef: Document): void {
     .mge-panel-frame__content {
       background: var(--mge-panel-alt);
       overflow: auto;
-      padding: 0.5rem;
+      padding: 0.55rem;
     }
     .mge-panel-frame__content--viewport {
       background: #1a1a1a;
@@ -1036,7 +1212,7 @@ function ensureStyles(documentRef: Document): void {
     .mge-property-row input,
     .mge-property-row textarea,
     .mge-palette__input {
-      background: #262626;
+      background: #1f1f1f;
       border: 1px solid var(--mge-line);
       color: var(--mge-text);
       min-height: 1.9rem;
@@ -1050,16 +1226,36 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-tree-node {
       align-items: center;
-      background: #373737;
-      border: 1px solid #262626;
+      background: #252526;
+      border: 1px solid transparent;
       cursor: pointer;
       display: flex;
+      gap: 0.45rem;
       justify-content: space-between;
-      padding: 0.4rem 0.5rem;
+      min-height: 1.85rem;
+      padding: 0.24rem 0.45rem;
     }
     .mge-tree-node.is-selected {
-      background: var(--mge-accent-soft);
-      border-color: var(--mge-accent);
+      background: rgba(55, 148, 255, 0.16);
+      border-color: rgba(55, 148, 255, 0.35);
+    }
+    .mge-tree-node__main,
+    .mge-tree-node__meta {
+      align-items: center;
+      display: flex;
+      gap: 0.4rem;
+      min-width: 0;
+    }
+    .mge-tree-node__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mge-tree-node__icon,
+    .mge-tree-node__trailing,
+    .mge-command-shortcut {
+      color: var(--mge-text-muted);
+      font-size: 0.78rem;
     }
     .mge-tree-children {
       border-left: 1px solid #404040;
@@ -1087,7 +1283,7 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-modal,
     .mge-palette {
-      background: #2b2b2b;
+      background: var(--mge-bg-alt);
       border: 1px solid var(--mge-line);
       box-shadow: 0 24px 52px rgba(0, 0, 0, 0.45);
       display: grid;
@@ -1101,9 +1297,26 @@ function ensureStyles(documentRef: Document): void {
       justify-content: space-between;
     }
     .mge-section {
-      background: #313131;
-      border: 1px solid #252525;
+      background: #252526;
+      border: 1px solid #1a1a1a;
       padding: 0.45rem;
+    }
+    .mge-inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .mge-command-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mge-palette__item {
+      align-items: center;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
     }
     .mge-viewport-panel {
       background: #1a1a1a;
@@ -1175,7 +1388,7 @@ function ensureStyles(documentRef: Document): void {
       font-size: 0.78rem;
     }
     @media (max-width: 1080px) {
-      .mge-topbar {
+      .mge-titlebar {
         grid-template-columns: 1fr;
       }
       .mge-workspace {
@@ -1186,6 +1399,9 @@ function ensureStyles(documentRef: Document): void {
           "bottom";
         grid-template-columns: 1fr;
         grid-template-rows: minmax(24rem, 1fr) repeat(3, minmax(14rem, auto));
+      }
+      .mge-activity-rail {
+        display: none;
       }
       .mge-resize-handle {
         display: none;
@@ -1200,15 +1416,35 @@ function renderTreeNode(node: MGEngineUITreeNode): HTMLElement {
   wrapper.className = "mge-stack";
   const button = document.createElement("button");
   button.className = node.selected ? "mge-tree-node is-selected" : "mge-tree-node";
-  button.textContent = node.label;
+
+  const main = document.createElement("span");
+  main.className = "mge-tree-node__main";
+
+  if (node.icon) {
+    const icon = document.createElement("span");
+    icon.className = "mge-tree-node__icon";
+    icon.textContent = node.icon;
+    main.append(icon);
+  }
+
+  const label = document.createElement("span");
+  label.className = "mge-tree-node__label";
+  label.textContent = node.label;
+  main.append(label);
+  button.append(main);
 
   if (node.trailing) {
+    const meta = document.createElement("span");
+    meta.className = "mge-tree-node__meta";
     const trailing = document.createElement("span");
+    trailing.className = "mge-tree-node__trailing";
     trailing.textContent = node.trailing;
-    button.append(trailing);
+    meta.append(trailing);
+    button.append(meta);
   }
 
   button.addEventListener("click", () => node.onSelect?.());
+  button.addEventListener("dblclick", () => node.onOpen?.());
   wrapper.append(button);
 
   if (node.children && node.children.length > 0) {
@@ -1223,6 +1459,121 @@ function renderTreeNode(node: MGEngineUITreeNode): HTMLElement {
   }
 
   return wrapper;
+}
+
+function abbreviationForPanel(title: string): string {
+  const words = title
+    .split(/\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (words.length >= 2) {
+    return `${words[0]?.[0] ?? ""}${words[1]?.[0] ?? ""}`;
+  }
+
+  return title.slice(0, 2);
+}
+
+function formatCommandKeybinding(command: MGEngineUICommandDefinition | null): string | null {
+  const first = resolveCommandKeybindings(command)[0];
+  return first ?? null;
+}
+
+function formatCommandTooltip(command: MGEngineUICommandDefinition | null): string | undefined {
+  if (!command) {
+    return undefined;
+  }
+
+  const keybinding = formatCommandKeybinding(command);
+  return keybinding ? `${command.title} (${keybinding})` : command.title;
+}
+
+function resolveCommandKeybindings(command: MGEngineUICommandDefinition | null): string[] {
+  if (!command?.keybinding) {
+    return [];
+  }
+
+  return Array.isArray(command.keybinding) ? command.keybinding : [command.keybinding];
+}
+
+function matchesKeybinding(binding: string, event: KeyboardEvent): boolean {
+  const expected = parseKeybinding(binding);
+
+  if (!expected) {
+    return false;
+  }
+
+  return (
+    expected.alt === event.altKey &&
+    expected.ctrl === event.ctrlKey &&
+    expected.meta === event.metaKey &&
+    expected.shift === event.shiftKey &&
+    expected.key === normalizeEventKey(event.key)
+  );
+}
+
+function parseKeybinding(binding: string): {
+  alt: boolean;
+  ctrl: boolean;
+  key: string;
+  meta: boolean;
+  shift: boolean;
+} | null {
+  const tokens = binding
+    .split("+")
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  let alt = false;
+  let ctrl = false;
+  let meta = false;
+  let shift = false;
+  let key: string | null = null;
+
+  for (const token of tokens) {
+    const normalized = token.toLowerCase();
+
+    if (normalized === "ctrl" || normalized === "control") {
+      ctrl = true;
+      continue;
+    }
+
+    if (normalized === "shift") {
+      shift = true;
+      continue;
+    }
+
+    if (normalized === "alt") {
+      alt = true;
+      continue;
+    }
+
+    if (normalized === "cmd" || normalized === "meta" || normalized === "win") {
+      meta = true;
+      continue;
+    }
+
+    if (normalized === "mod") {
+      ctrl = true;
+      continue;
+    }
+
+    key = normalizeEventKey(token);
+  }
+
+  return key ? { alt, ctrl, key, meta, shift } : null;
+}
+
+function normalizeEventKey(value: string): string {
+  if (value === " ") {
+    return "space";
+  }
+
+  return value.toLowerCase();
 }
 
 function resolveRoot(): HTMLElement {
