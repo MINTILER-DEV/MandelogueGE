@@ -35,6 +35,9 @@ describe("@mge/scripting-ts", () => {
     const scene = runtime.createScene("Scripts");
     const entity = new Entity("Player");
     const scriptRuntime: ScriptRuntimeService = {
+      applyScriptProperties() {
+        return 0;
+      },
       createScriptComponent(definition) {
         return new ScriptComponent(definition);
       },

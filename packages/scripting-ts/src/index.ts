@@ -14,6 +14,7 @@ export interface ScriptComponentDefinition {
 }
 
 export interface ScriptRuntimeService {
+  applyScriptProperties(scriptPath: string, properties: Record<string, unknown>): number;
   createScriptComponent(definition: ScriptComponentDefinition): ScriptComponent;
   registerScript(scriptPath: string, moduleLike: ScriptModuleLike): void;
   reloadScript(scriptPath: string): number;
@@ -131,6 +132,50 @@ const scriptingTsModule: MGECModule = {
       : {};
 
     const scriptRuntime: ScriptRuntimeService = {
+      applyScriptProperties(scriptPath, properties) {
+        const scene = runtime.getScene();
+
+        if (!scene) {
+          return 0;
+        }
+
+        let updatedCount = 0;
+
+        for (const entity of scene.entities) {
+          for (const component of entity.components) {
+            if (!(component instanceof ScriptComponent) || component.script !== scriptPath) {
+              continue;
+            }
+
+            let changed = false;
+
+            for (const [key, value] of Object.entries(properties)) {
+              if (!(key in component.properties)) {
+                continue;
+              }
+
+              if (component.properties[key] === value) {
+                continue;
+              }
+
+              component.properties[key] = value;
+              changed = true;
+
+              const instanceRecord = component.instance as unknown as Record<string, unknown> | null;
+
+              if (instanceRecord && key in instanceRecord) {
+                instanceRecord[key] = value;
+              }
+            }
+
+            if (changed) {
+              updatedCount += 1;
+            }
+          }
+        }
+
+        return updatedCount;
+      },
       createScriptComponent(definition) {
         return new ScriptComponent(definition);
       },

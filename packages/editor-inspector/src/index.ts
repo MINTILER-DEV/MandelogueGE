@@ -1,14 +1,23 @@
 import type { Component, Entity } from "@mge/core";
 import type { EditorService } from "@mge/editor-core";
+import type { ECSService } from "@mge/ecs";
 import type { MGECModule } from "@mge/kernel";
 import type { MGEngineUIPropertyRowDefinition, MGEngineUIService } from "@mge/mgengineui";
 import type { ScriptComponent } from "@mge/scripting-ts";
+
+interface ScriptPropertySyncService {
+  updateScriptProperty(path: string, propertyName: string, value: boolean | number | string): boolean;
+}
 
 const editorInspectorModule: MGECModule = {
   id: "@mge/editor-inspector",
 
   setup(ctx) {
+    const ecs = ctx.services.require<ECSService>("ecs");
     const ui = ctx.services.require<MGEngineUIService>("mgengineui");
+    const textEditor = ctx.services.has("text-editor")
+      ? ctx.services.require<ScriptPropertySyncService>("text-editor")
+      : null;
 
     ui.panels.register({
       id: "inspector",
@@ -27,7 +36,7 @@ const editorInspectorModule: MGECModule = {
           return stack;
         }
 
-        stack.append(renderEntityHeader(entity, editor, uiService));
+        stack.append(renderEntityHeader(entity, editor, ecs, uiService));
 
         for (const component of entity.components) {
           const section = document.createElement("section");
@@ -36,7 +45,7 @@ const editorInspectorModule: MGECModule = {
           const title = document.createElement("strong");
           title.textContent = component.constructor.name;
           section.append(title);
-          section.append(uiService.propertyGrid.render(buildRows(component, editor)));
+          section.append(uiService.propertyGrid.render(buildRows(component, editor, textEditor)));
           stack.append(section);
         }
 
@@ -48,7 +57,11 @@ const editorInspectorModule: MGECModule = {
   }
 };
 
-function buildRows(component: Component, editor: EditorService): MGEngineUIPropertyRowDefinition[] {
+function buildRows(
+  component: Component,
+  editor: EditorService,
+  textEditor: ScriptPropertySyncService | null
+): MGEngineUIPropertyRowDefinition[] {
   const rows: MGEngineUIPropertyRowDefinition[] = [];
 
   for (const [key, value] of Object.entries(component)) {
@@ -88,6 +101,15 @@ function buildRows(component: Component, editor: EditorService): MGEngineUIPrope
                 maybeScript.instance[nestedKey] = nextValue;
               }
 
+              if (
+                key === "properties" &&
+                typeof maybeScript.script === "string" &&
+                textEditor &&
+                isScriptEditableValue(nextValue)
+              ) {
+                textEditor.updateScriptProperty(maybeScript.script, nestedKey, nextValue);
+              }
+
               editor.refresh();
             },
             value: nestedValue
@@ -104,7 +126,16 @@ function isRecord(value: unknown): value is Record<string, boolean | number | st
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function renderEntityHeader(entity: Entity, editor: EditorService, ui: MGEngineUIService): HTMLElement {
+function isScriptEditableValue(value: unknown): value is boolean | number | string {
+  return typeof value === "boolean" || typeof value === "number" || typeof value === "string";
+}
+
+function renderEntityHeader(
+  entity: Entity,
+  editor: EditorService,
+  ecs: ECSService,
+  ui: MGEngineUIService
+): HTMLElement {
   const stack = document.createElement("div");
   stack.className = "mge-section mge-stack";
   stack.append(
@@ -120,6 +151,48 @@ function renderEntityHeader(entity: Entity, editor: EditorService, ui: MGEngineU
       }
     ])
   );
+
+  const actions = document.createElement("div");
+  actions.className = "mge-inline-actions";
+  actions.append(
+    ui.button.create({
+      label: "Add Component",
+      onClick: () => {
+        const availableTypes = ecs
+          .listComponentFactories()
+          .map((factory) => factory.type)
+          .sort((left, right) => left.localeCompare(right));
+
+        if (availableTypes.length === 0) {
+          editor.log("warn", "No component factories are registered.", "@mge/editor-inspector");
+          return;
+        }
+
+        const response = globalThis.prompt(
+          `Add component to "${entity.name}". Enter one of:\n${availableTypes.join("\n")}`,
+          availableTypes[0]
+        );
+
+        if (!response) {
+          return;
+        }
+
+        const componentType = availableTypes.find(
+          (candidate) => candidate.toLowerCase() === response.trim().toLowerCase()
+        );
+
+        if (!componentType) {
+          editor.log("warn", `Unknown component type "${response}".`, "@mge/editor-inspector");
+          return;
+        }
+
+        ecs.addComponent(entity, componentType);
+        editor.log("info", `Added ${componentType} to "${entity.name}".`, "@mge/editor-inspector");
+        editor.refresh();
+      }
+    })
+  );
+  stack.append(actions);
   return stack;
 }
 

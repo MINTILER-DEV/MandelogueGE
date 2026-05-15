@@ -9,6 +9,7 @@ import type { MGECModule } from "@mge/kernel";
 import type { MGEngineUIService } from "@mge/mgengineui";
 import type { ScriptRuntimeService } from "@mge/scripting-ts";
 import { compileTypeScriptModule, evaluateCommonJsModule } from "./script-compiler.js";
+import { readScriptEditableValues, type ScriptEditableValue, updateScriptEditableValue } from "./script-properties.js";
 
 export interface TextEditorService {
   find(): void;
@@ -18,6 +19,7 @@ export interface TextEditorService {
   openFile(path: string, options?: { activatePanel?: boolean }): void;
   replace(): void;
   saveActiveFile(): Promise<boolean>;
+  updateScriptProperty(path: string, propertyName: string, value: ScriptEditableValue): boolean;
 }
 
 interface InternalTextEditorService extends TextEditorService {
@@ -131,6 +133,7 @@ function createTextEditorService(dependencies: {
   const modelDisposables = new Map<string, monaco.IDisposable[]>();
   const models = new Map<string, monaco.editor.ITextModel>();
   const openTabs: string[] = [];
+  const savedContents = new Map<string, string>();
   const syncingPaths = new Set<string>();
   const panelRoot = document.createElement("div");
   const toolbar = document.createElement("div");
@@ -164,14 +167,20 @@ function createTextEditorService(dependencies: {
 
       initialised = true;
       registerAllProjectScripts();
-      const firstScriptPath = editor.getProjectFiles().find((file) => isScriptFile(file.path))?.path ?? null;
       const selectedPath = editor.getSelectedFilePath();
 
-      if (firstScriptPath) {
-        textEditor.openFile(firstScriptPath);
+      if (activePath && isEditableTextFile(editor.getProjectFile(activePath))) {
+        textEditor.openFile(activePath);
       } else if (selectedPath && isEditableTextFile(editor.getProjectFile(selectedPath))) {
         textEditor.openFile(selectedPath);
       } else {
+        const firstScriptPath = editor.getProjectFiles().find((file) => isScriptFile(file.path))?.path ?? null;
+
+        if (firstScriptPath) {
+          textEditor.openFile(firstScriptPath);
+          return;
+        }
+
         renderPanel();
       }
     },
@@ -218,14 +227,48 @@ function createTextEditorService(dependencies: {
         kind: existing.kind,
         select: true
       });
+      savedContents.set(activePath, nextContent);
       dirtyPaths.delete(activePath);
 
       if (isScriptFile(activePath)) {
+        syncScriptPropertiesFromSource(activePath, nextContent);
         hotReloadScript(activePath, nextContent, model);
       }
 
       editor.saveProject();
       editor.log("info", `Saved "${activePath}".`, "@mge/editor-text");
+      renderPanel();
+      return true;
+    },
+    updateScriptProperty(path, propertyName, value) {
+      const existing = editor.getProjectFile(path);
+
+      if (!existing || !isScriptFile(path)) {
+        return false;
+      }
+
+      const model = models.get(path) ?? null;
+      const source = model?.getValue() ?? existing.content;
+      const nextContent = updateScriptEditableValue(source, propertyName, value);
+
+      if (!nextContent) {
+        return false;
+      }
+
+      editor.updateProjectFile(path, nextContent, {
+        kind: existing.kind,
+        select: false
+      });
+
+      if (model && model.getValue() !== nextContent) {
+        syncingPaths.add(path);
+        model.setValue(nextContent);
+      }
+
+      savedContents.set(path, nextContent);
+      dirtyPaths.delete(path);
+      syncScriptPropertiesFromSource(path, nextContent);
+      hotReloadScript(path, nextContent, model);
       renderPanel();
       return true;
     }
@@ -252,7 +295,11 @@ function createTextEditorService(dependencies: {
 
     if (event.type === "file-selection-changed" && event.filePath) {
       if (isEditableTextFile(editor.getProjectFile(event.filePath))) {
-        textEditor.openFile(event.filePath, { activatePanel: true });
+        if (!activePath) {
+          textEditor.openFile(event.filePath);
+        } else if (openTabs.includes(event.filePath)) {
+          textEditor.openFile(event.filePath);
+        }
       }
 
       return;
@@ -263,14 +310,16 @@ function createTextEditorService(dependencies: {
     }
   }
 
-  function hotReloadScript(path: string, source: string, model: monaco.editor.ITextModel): void {
+  function hotReloadScript(path: string, source: string, model: monaco.editor.ITextModel | null): void {
     if (!scriptRuntime) {
       return;
     }
 
-    const errorMarkers = monaco.editor
-      .getModelMarkers({ resource: model.uri })
-      .filter((marker) => marker.severity === monaco.MarkerSeverity.Error);
+    const errorMarkers = model
+      ? monaco.editor
+          .getModelMarkers({ resource: model.uri })
+          .filter((marker) => marker.severity === monaco.MarkerSeverity.Error)
+      : [];
 
     if (errorMarkers.length > 0) {
       editor.log(
@@ -349,6 +398,7 @@ function createTextEditorService(dependencies: {
 
     if (existing) {
       if (!dirtyPaths.has(file.path) && existing.getValue() !== file.content) {
+        savedContents.set(file.path, file.content);
         syncingPaths.add(file.path);
         existing.setValue(file.content);
       }
@@ -357,14 +407,21 @@ function createTextEditorService(dependencies: {
     }
 
     const model = monaco.editor.createModel(file.content, resolveLanguage(file.path), resolveUri(file.path));
+    savedContents.set(file.path, file.content);
     const disposables: monaco.IDisposable[] = [
       model.onDidChangeContent(() => {
         if (syncingPaths.has(file.path)) {
           syncingPaths.delete(file.path);
+          updateDirtyState(file.path, model);
           return;
         }
 
-        dirtyPaths.add(file.path);
+        updateDirtyState(file.path, model);
+
+        if (isScriptFile(file.path)) {
+          syncScriptPropertiesFromSource(file.path, model.getValue());
+        }
+
         renderPanel();
       })
     ];
@@ -415,6 +472,7 @@ function createTextEditorService(dependencies: {
 
       syncingPaths.add(path);
       ensureModel(file).setValue(file.content);
+      savedContents.set(path, file.content);
       dirtyPaths.delete(path);
     }
 
@@ -424,15 +482,15 @@ function createTextEditorService(dependencies: {
       }
     }
 
+    if (activePath && nextFiles.has(activePath)) {
+      codeEditor?.setModel(models.get(activePath) ?? null);
+      return;
+    }
+
     const selectedPath = editor.getSelectedFilePath();
 
     if (selectedPath && isEditableTextFile(editor.getProjectFile(selectedPath))) {
       textEditor.openFile(selectedPath);
-      return;
-    }
-
-    if (activePath && nextFiles.has(activePath)) {
-      codeEditor?.setModel(models.get(activePath) ?? null);
       return;
     }
 
@@ -446,6 +504,7 @@ function createTextEditorService(dependencies: {
     models.get(path)?.dispose();
     models.delete(path);
     dirtyPaths.delete(path);
+    savedContents.delete(path);
   }
 
   function removeOpenTab(path: string): void {
@@ -526,6 +585,26 @@ function createTextEditorService(dependencies: {
     globalThis.requestAnimationFrame?.(() => {
       codeEditor?.layout();
     });
+  }
+
+  function syncScriptPropertiesFromSource(path: string, source: string): void {
+    if (!scriptRuntime) {
+      return;
+    }
+
+    const updatedCount = scriptRuntime.applyScriptProperties(path, readScriptEditableValues(source));
+
+    if (updatedCount > 0 && !editor.isPlaying()) {
+      editor.refresh();
+    }
+  }
+
+  function updateDirtyState(path: string, model: monaco.editor.ITextModel): void {
+    if (model.getValue() === (savedContents.get(path) ?? "")) {
+      dirtyPaths.delete(path);
+    } else {
+      dirtyPaths.add(path);
+    }
   }
 
   return textEditor;
@@ -721,3 +800,4 @@ function basename(path: string): string {
 
 export default editorTextModule;
 export { compileTypeScriptModule, evaluateCommonJsModule };
+export { readScriptEditableValues, updateScriptEditableValue };
