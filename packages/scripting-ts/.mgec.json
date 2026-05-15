@@ -1,0 +1,18 @@
+{
+  "id": "@mge/scripting-ts",
+  "name": "MGE TypeScript Scripting",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["runtime"],
+  "requires": {
+    "@mge/core": "^0.1.0",
+    "@mge/ecs": "^0.1.0"
+  },
+  "requiresFeatures": ["runtime:loop", "service:ecs"],
+  "providesFeatures": [
+    "script-language:typescript",
+    "asset-loader:ts-script",
+    "component:Script",
+    "service:script-runtime"
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "name": "@mge/demo-square",
+  "name": "@mge/scripting-ts",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,11 +18,7 @@
   "dependencies": {
     "@mge/core": "workspace:*",
     "@mge/ecs": "workspace:*",
-    "@mge/input": "workspace:*",
-    "@mge/kernel": "workspace:*",
-    "@mge/renderer-canvas2d": "workspace:*",
-    "@mge/scene": "workspace:*",
-    "@mge/scripting-ts": "workspace:*",
-    "@mge/time": "workspace:*"
+    "@mge/kernel": "workspace:*"
   }
 }
+

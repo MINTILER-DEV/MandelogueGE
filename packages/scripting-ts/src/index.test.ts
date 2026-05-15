@@ -1,0 +1,84 @@
+import { describe, expect, it } from "vitest";
+
+import { Entity, Runtime, Script, Transform, type RuntimeFrameDriver } from "../../core/src/index.js";
+import { ServiceRegistry } from "../../kernel/src/index.js";
+
+import { ScriptComponent, type ScriptRuntimeService } from "./index.js";
+
+class TestPlayerController extends Script {
+  speed = 120;
+
+  override update(dt: number): void {
+    if (this.input.keyDown("KeyD")) {
+      this.transform.x += this.speed * dt;
+    }
+  }
+}
+
+function frameDriver(): RuntimeFrameDriver {
+  return {
+    cancelAnimationFrame() {},
+    now() {
+      return 1000;
+    },
+    requestAnimationFrame() {
+      return 1;
+    }
+  };
+}
+
+describe("@mge/scripting-ts", () => {
+  it("binds a user script to an entity and applies script properties", () => {
+    const services = new ServiceRegistry();
+    const down = new Set<string>(["KeyD"]);
+    const runtime = new Runtime(services, frameDriver());
+    const scene = runtime.createScene("Scripts");
+    const entity = new Entity("Player");
+    const scriptRuntime: ScriptRuntimeService = {
+      createScriptComponent(definition) {
+        return new ScriptComponent(definition);
+      },
+      registerScript() {},
+      resolveScript() {
+        return TestPlayerController;
+      }
+    };
+
+    services.provide("runtime", runtime, "test");
+    services.provide("script-runtime", scriptRuntime, "test");
+    services.provide(
+      "input",
+      {
+        keyDown(code: string) {
+          return down.has(code);
+        }
+      },
+      "test"
+    );
+    services.provide(
+      "time",
+      {
+        delta: 0,
+        elapsed: 0,
+        frame: 0,
+        scale: 1
+      },
+      "test"
+    );
+
+    entity.addComponent(new Transform({ x: 10, y: 20 }));
+    entity.addComponent(
+      new ScriptComponent({
+        properties: { speed: 240 },
+        script: "./scripts/PlayerController.ts"
+      })
+    );
+    scene.addEntity(entity);
+    runtime.setActiveScene(scene);
+
+    runtime.tick(1000);
+    runtime.tick(1016.6667);
+
+    expect(entity.getComponent(Transform)?.x).toBeCloseTo(18, 4);
+  });
+});

@@ -24,6 +24,10 @@ export interface RuntimeSystem {
   run(ctx: RuntimeFrameContext, dt: number): void;
 }
 
+export interface KeyboardInputLike {
+  keyDown(code: string): boolean;
+}
+
 export interface ComponentFactory {
   create(data?: Record<string, unknown>): Component;
   type: string;
@@ -69,6 +73,71 @@ export class Transform extends Component {
   constructor(init?: Partial<Transform>) {
     super();
     Object.assign(this, init);
+  }
+}
+
+export class Script {
+  entity!: Entity;
+  #frameContext: RuntimeFrameContext | null = null;
+
+  attach(entity: Entity): void {
+    this.entity = entity;
+  }
+
+  destroy(): void {}
+
+  get input(): KeyboardInputLike {
+    return this.requireService<KeyboardInputLike>("input");
+  }
+
+  get runtime(): Runtime {
+    return this.frameContext.runtime;
+  }
+
+  get scene(): Scene {
+    return this.frameContext.scene;
+  }
+
+  get services(): ServiceRegistry {
+    return this.frameContext.services;
+  }
+
+  get time(): { delta: number; elapsed: number; frame: number; scale: number } {
+    return this.requireService<{ delta: number; elapsed: number; frame: number; scale: number }>("time");
+  }
+
+  get transform(): Transform {
+    const transform = this.entity.getComponent(Transform);
+
+    if (!transform) {
+      throw new Error(`Script "${this.constructor.name}" requires a Transform component on entity "${this.entity.name}".`);
+    }
+
+    return transform;
+  }
+
+  requireService<T>(id: string): T {
+    return this.frameContext.services.require<T>(id);
+  }
+
+  render(): void {}
+
+  setFrameContext(frameContext: RuntimeFrameContext): void {
+    this.#frameContext = frameContext;
+  }
+
+  start(): void {}
+
+  update(_dt: number): void {
+    void _dt;
+  }
+
+  protected get frameContext(): RuntimeFrameContext {
+    if (!this.#frameContext) {
+      throw new Error(`Script "${this.constructor.name}" has not been bound to a runtime frame yet.`);
+    }
+
+    return this.#frameContext;
   }
 }
 

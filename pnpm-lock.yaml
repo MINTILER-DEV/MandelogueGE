@@ -68,6 +68,9 @@ importers:
       '@mge/scene':
         specifier: workspace:*
         version: link:../../packages/scene
+      '@mge/scripting-ts':
+        specifier: workspace:*
+        version: link:../../packages/scripting-ts
       '@mge/time':
         specifier: workspace:*
         version: link:../../packages/time
@@ -98,6 +101,9 @@ importers:
       '@mge/scene':
         specifier: workspace:*
         version: link:../scene
+      '@mge/scripting-ts':
+        specifier: workspace:*
+        version: link:../scripting-ts
       '@mge/time':
         specifier: workspace:*
         version: link:../time
@@ -146,6 +152,18 @@ importers:
       '@mge/core':
         specifier: workspace:*
         version: link:../core
+      '@mge/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/scripting-ts:
+    dependencies:
+      '@mge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mge/ecs':
+        specifier: workspace:*
+        version: link:../ecs
       '@mge/kernel':
         specifier: workspace:*
         version: link:../kernel

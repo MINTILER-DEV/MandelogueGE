@@ -10,9 +10,9 @@
     "@mge/scene": "^0.1.0",
     "@mge/ecs": "^0.1.0",
     "@mge/input": "^0.1.0",
+    "@mge/scripting-ts": "^0.1.0",
     "@mge/renderer-canvas2d": "^0.1.0"
   },
-  "requiresFeatures": ["service:scene", "service:ecs", "service:input", "service:renderer"],
+  "requiresFeatures": ["service:scene", "service:ecs", "service:input", "service:renderer", "service:script-runtime"],
   "providesFeatures": ["component:Square"]
 }
-

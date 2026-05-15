@@ -19,6 +19,7 @@
     "paths": {
       "@mge/kernel": ["packages/kernel/src/index.ts"],
       "@mge/core": ["packages/core/src/index.ts"],
+      "@mge/scripting-ts": ["packages/scripting-ts/src/index.ts"],
       "@mge/time": ["packages/time/src/index.ts"],
       "@mge/scene": ["packages/scene/src/index.ts"],
       "@mge/ecs": ["packages/ecs/src/index.ts"],
