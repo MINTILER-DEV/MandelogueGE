@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { MGEKernel } from "./index.js";
+import { MGEKernel, type MGEComponentSource } from "./index.js";
 
 const tempDirs: string[] = [];
 
@@ -170,5 +170,66 @@ describe("MGEKernel", () => {
 
     await expect(kernel.resolveProject()).rejects.toThrow('requires feature "service:not-there"');
   });
-});
 
+  it("boots from in-memory project and component definitions", async () => {
+    const events: string[] = [];
+    const workspaceComponents: MGEComponentSource[] = [
+      {
+        manifest: {
+          entry: "./virtual.js",
+          id: "@mge/memory-core",
+          name: "Memory Core",
+          providesFeatures: ["service:memory-core"],
+          targets: ["runtime"],
+          version: "0.1.0"
+        },
+        module: {
+          id: "@mge/memory-core",
+          setup(ctx) {
+            ctx.services.provide("memory-core", { ok: true }, ctx.component.id);
+            events.push("core:setup");
+          }
+        }
+      },
+      {
+        manifest: {
+          entry: "./virtual.js",
+          id: "@mge/memory-addon",
+          name: "Memory Addon",
+          requires: {
+            "@mge/memory-core": "^0.1.0"
+          },
+          requiresFeatures: ["service:memory-core"],
+          targets: ["runtime"],
+          version: "0.1.0"
+        },
+        module: {
+          id: "@mge/memory-addon",
+          run(ctx) {
+            ctx.services.require<{ ok: boolean }>("memory-core");
+            events.push(`addon:run:${ctx.kernel.resolvedOrder.join(">")}`);
+          }
+        }
+      }
+    ];
+
+    const kernel = new MGEKernel({
+      emitDiagnosticsToConsole: false,
+      projectManifest: {
+        components: {
+          "@mge/memory-addon": "^0.1.0"
+        },
+        engine: "MandelogueGE",
+        name: "Memory Project",
+        type: "game"
+      },
+      workspaceComponents
+    });
+
+    await kernel.boot();
+    await kernel.run();
+
+    expect(kernel.resolvedOrder).toEqual(["@mge/memory-core", "@mge/memory-addon"]);
+    expect(events).toEqual(["core:setup", "addon:run:@mge/memory-core>@mge/memory-addon"]);
+  });
+});

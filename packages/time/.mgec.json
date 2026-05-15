@@ -1,0 +1,13 @@
+{
+  "id": "@mge/time",
+  "name": "MGE Time",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["runtime"],
+  "requires": {
+    "@mge/core": "^0.1.0"
+  },
+  "requiresFeatures": ["runtime:loop"],
+  "providesFeatures": ["service:time"]
+}
+

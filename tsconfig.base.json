@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "declaration": true,
     "declarationMap": true,
@@ -19,8 +19,13 @@
     "paths": {
       "@mge/kernel": ["packages/kernel/src/index.ts"],
       "@mge/core": ["packages/core/src/index.ts"],
+      "@mge/time": ["packages/time/src/index.ts"],
+      "@mge/scene": ["packages/scene/src/index.ts"],
+      "@mge/ecs": ["packages/ecs/src/index.ts"],
+      "@mge/input": ["packages/input/src/index.ts"],
+      "@mge/renderer-canvas2d": ["packages/renderer-canvas2d/src/index.ts"],
+      "@mge/demo-square": ["packages/demo-square/src/index.ts"],
       "@mge/test-package": ["packages/test-package/src/index.ts"]
     }
   }
 }
-

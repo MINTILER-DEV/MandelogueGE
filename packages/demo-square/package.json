@@ -1,5 +1,5 @@
 {
-  "name": "@mge/core",
+  "name": "@mge/demo-square",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,6 +16,13 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "dependencies": {
-    "@mge/kernel": "workspace:*"
+    "@mge/core": "workspace:*",
+    "@mge/ecs": "workspace:*",
+    "@mge/input": "workspace:*",
+    "@mge/kernel": "workspace:*",
+    "@mge/renderer-canvas2d": "workspace:*",
+    "@mge/scene": "workspace:*",
+    "@mge/time": "workspace:*"
   }
 }
+

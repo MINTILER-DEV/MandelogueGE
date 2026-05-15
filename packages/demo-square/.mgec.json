@@ -1,0 +1,18 @@
+{
+  "id": "@mge/demo-square",
+  "name": "MGE Demo Square",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["runtime"],
+  "requires": {
+    "@mge/core": "^0.1.0",
+    "@mge/time": "^0.1.0",
+    "@mge/scene": "^0.1.0",
+    "@mge/ecs": "^0.1.0",
+    "@mge/input": "^0.1.0",
+    "@mge/renderer-canvas2d": "^0.1.0"
+  },
+  "requiresFeatures": ["service:scene", "service:ecs", "service:input", "service:renderer"],
+  "providesFeatures": ["component:Square"]
+}
+

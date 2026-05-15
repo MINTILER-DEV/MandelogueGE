@@ -1,7 +1,3 @@
-import { readdir, readFile } from "node:fs/promises";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
-
 import satisfies from "semver/functions/satisfies.js";
 import { z } from "zod";
 
@@ -70,15 +66,28 @@ export interface MGECModule {
 
 export interface MGEKernelOptions {
   emitDiagnosticsToConsole?: boolean;
+  initialServices?: Record<string, unknown>;
   manifestNames?: string[];
-  projectFile: string;
-  workspaceRoot: string;
+  projectFile?: string;
+  projectManifest?: MGEProjectManifest;
+  workspaceComponents?: MGEComponentSource[];
+  workspaceRoot?: string;
 }
 
 export interface MGEWorkspaceComponent {
+  loadModule?: () => Promise<MGECModule> | MGECModule;
   manifest: MGECManifest;
   manifestFile: string;
+  module?: MGECModule;
   packageRoot: string;
+}
+
+export interface MGEComponentSource {
+  loadModule?: () => Promise<MGECModule> | MGECModule;
+  manifest: MGECManifest;
+  manifestFile?: string;
+  module?: MGECModule;
+  packageRoot?: string;
 }
 
 export interface MGEProjectResolution {
@@ -108,6 +117,29 @@ const mgecManifestSchema = z.object({
   permissions: z.array(z.string().min(1)).optional(),
   mge: z.string().min(1).optional()
 });
+
+type ReadFileModule = {
+  readFile(filePath: string, encoding: "utf8"): Promise<string>;
+};
+
+type ReaddirModule = {
+  readdir(
+    rootDir: string,
+    options: { withFileTypes: true }
+  ): Promise<Array<{ isDirectory(): boolean; name: string }>>;
+};
+
+type PathModule = {
+  dirname(filePath: string): string;
+  join(...parts: string[]): string;
+  resolve(...parts: string[]): string;
+};
+
+type UrlModule = {
+  pathToFileURL(filePath: string): { href: string };
+};
+
+const dynamicImport = (specifier: string): Promise<unknown> => import(specifier);
 
 export class ServiceRegistry {
   #owners = new Map<string, string>();
@@ -249,6 +281,10 @@ export class MGEKernel {
   constructor(options: MGEKernelOptions) {
     this.#options = options;
     this.#manifestNames = options.manifestNames ?? [".mgec.json", "mgec.json"];
+
+    for (const [serviceId, serviceValue] of Object.entries(options.initialServices ?? {})) {
+      this.#services.provide(serviceId, serviceValue, "kernel");
+    }
   }
 
   get diagnostics(): readonly MGEKernelDiagnostic[] {
@@ -280,7 +316,7 @@ export class MGEKernel {
   }
 
   async resolveProject(): Promise<MGEProjectResolution> {
-    const project = await this.#readManifest(this.#options.projectFile, projectManifestSchema);
+    const project = await this.#getProjectManifest();
     const workspace = await this.#scanWorkspace();
     const orderedIds: string[] = [];
     const requestedComponents = new Map<string, string[]>();
@@ -371,9 +407,7 @@ export class MGEKernel {
     }
 
     for (const component of resolution.components) {
-      const moduleUrl = pathToFileURL(path.resolve(component.packageRoot, component.manifest.entry)).href;
-      const imported = (await import(moduleUrl)) as { default?: unknown };
-      const moduleDefinition = this.#normalizeModuleDefinition(imported.default ?? imported);
+      const moduleDefinition = this.#normalizeModuleDefinition(await this.#loadModuleDefinition(component));
 
       if (moduleDefinition.id && moduleDefinition.id !== component.manifest.id) {
         throw new Error(
@@ -388,16 +422,16 @@ export class MGEKernel {
         extensions: this.#extensions,
         features: this.#features,
         kernel: {
-          projectFile: this.#options.projectFile,
+          projectFile: this.#options.projectFile ?? "virtual://project/.mgeproject.json",
           resolvedOrder: this.resolvedOrder,
-          workspaceRoot: this.#options.workspaceRoot
+          workspaceRoot: this.#options.workspaceRoot ?? "virtual://workspace"
         },
         log: logger,
         paths: {
           componentRoot: component.packageRoot,
           manifestFile: component.manifestFile,
-          projectFile: this.#options.projectFile,
-          workspaceRoot: this.#options.workspaceRoot
+          projectFile: this.#options.projectFile ?? "virtual://project/.mgeproject.json",
+          workspaceRoot: this.#options.workspaceRoot ?? "virtual://workspace"
         },
         project: resolution.project,
         services: this.#services
@@ -479,9 +513,38 @@ export class MGEKernel {
   }
 
   async #readManifest<T>(filePath: string, schema: z.ZodType<T>): Promise<T> {
+    const { readFile } = (await dynamicImport("node:fs/promises")) as ReadFileModule;
     const raw = await readFile(filePath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     return schema.parse(parsed);
+  }
+
+  async #getProjectManifest(): Promise<MGEProjectManifest> {
+    if (this.#options.projectManifest) {
+      return projectManifestSchema.parse(this.#options.projectManifest);
+    }
+
+    if (!this.#options.projectFile) {
+      throw new Error("Kernel options must provide either projectManifest or projectFile.");
+    }
+
+    return this.#readManifest(this.#options.projectFile, projectManifestSchema);
+  }
+
+  async #loadModuleDefinition(component: MGEWorkspaceComponent): Promise<unknown> {
+    if (component.module) {
+      return component.module;
+    }
+
+    if (component.loadModule) {
+      return component.loadModule();
+    }
+
+    const pathModule = (await dynamicImport("node:path")) as PathModule;
+    const { pathToFileURL } = (await dynamicImport("node:url")) as UrlModule;
+    const moduleUrl = pathToFileURL(pathModule.resolve(component.packageRoot, component.manifest.entry)).href;
+    const imported = (await import(moduleUrl)) as { default?: unknown };
+    return imported.default ?? imported;
   }
 
   #normalizeModuleDefinition(candidate: unknown): MGECModule {
@@ -493,28 +556,67 @@ export class MGEKernel {
   }
 
   async #scanWorkspace(): Promise<Map<string, MGEWorkspaceComponent>> {
+    if (this.#options.workspaceComponents) {
+      const componentMap = new Map<string, MGEWorkspaceComponent>();
+
+      for (const source of this.#options.workspaceComponents) {
+        const manifest = mgecManifestSchema.parse(source.manifest);
+        const normalized = this.#normalizeWorkspaceComponent(source, manifest);
+
+        if (componentMap.has(manifest.id)) {
+          throw new Error(`Duplicate MGEC id "${manifest.id}" detected in provided workspace components.`);
+        }
+
+        componentMap.set(manifest.id, normalized);
+      }
+
+      return componentMap;
+    }
+
+    if (!this.#options.workspaceRoot) {
+      throw new Error("Kernel options must provide either workspaceComponents or workspaceRoot.");
+    }
+
     const manifests = await this.#findManifestFiles(this.#options.workspaceRoot);
     const componentMap = new Map<string, MGEWorkspaceComponent>();
 
     for (const manifestFile of manifests) {
       const manifest = await this.#readManifest(manifestFile, mgecManifestSchema);
-      const packageRoot = path.dirname(manifestFile);
+      const normalized = this.#normalizeWorkspaceComponent(
+        {
+          manifest,
+          manifestFile,
+          packageRoot: ((await dynamicImport("node:path")) as PathModule).dirname(manifestFile)
+        },
+        manifest
+      );
 
-      if (componentMap.has(manifest.id)) {
+      if (componentMap.has(normalized.manifest.id)) {
         throw new Error(`Duplicate MGEC id "${manifest.id}" detected at ${manifestFile}.`);
       }
 
-      componentMap.set(manifest.id, {
-        manifest,
-        manifestFile,
-        packageRoot
-      });
+      componentMap.set(normalized.manifest.id, normalized);
     }
 
     return componentMap;
   }
 
+  #normalizeWorkspaceComponent(source: MGEComponentSource, manifest: MGECManifest): MGEWorkspaceComponent {
+    const packageRoot = source.packageRoot ?? `virtual://components/${encodeURIComponent(manifest.id)}`;
+    const manifestFile = source.manifestFile ?? `${packageRoot}/.mgec.json`;
+
+    return {
+      loadModule: source.loadModule,
+      manifest,
+      manifestFile,
+      module: source.module,
+      packageRoot
+    };
+  }
+
   async #findManifestFiles(rootDir: string): Promise<string[]> {
+    const { readdir } = (await dynamicImport("node:fs/promises")) as ReaddirModule;
+    const pathModule = (await dynamicImport("node:path")) as PathModule;
     const results: string[] = [];
 
     const walk = async (currentDir: string): Promise<void> => {
@@ -526,12 +628,12 @@ export class MGEKernel {
             continue;
           }
 
-          await walk(path.join(currentDir, entry.name));
+          await walk(pathModule.join(currentDir, entry.name));
           continue;
         }
 
         if (this.#manifestNames.includes(entry.name)) {
-          results.push(path.join(currentDir, entry.name));
+          results.push(pathModule.join(currentDir, entry.name));
         }
       }
     };

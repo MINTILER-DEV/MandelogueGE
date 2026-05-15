@@ -1,0 +1,16 @@
+{
+  "name": "Runtime Proof",
+  "type": "game",
+  "engine": "MandelogueGE",
+  "mainScene": "Runtime Proof Scene",
+  "components": {
+    "@mge/core": "^0.1.0",
+    "@mge/time": "^0.1.0",
+    "@mge/scene": "^0.1.0",
+    "@mge/ecs": "^0.1.0",
+    "@mge/input": "^0.1.0",
+    "@mge/renderer-canvas2d": "^0.1.0",
+    "@mge/demo-square": "^0.1.0"
+  }
+}
+

@@ -1,0 +1,130 @@
+import type { MGECModule } from "@mge/kernel";
+import { Component, Transform, type ComponentFactory, type RuntimeFrameContext } from "@mge/core";
+import type { ECSService } from "@mge/ecs";
+import type { InputService } from "@mge/input";
+import type { Canvas2DRendererService } from "@mge/renderer-canvas2d";
+import type { SceneService } from "@mge/scene";
+
+export class SquareComponent extends Component {
+  autoDirection = 1;
+  autoSpeed = 80;
+  color = "#ff7a1a";
+  controlSpeed = 200;
+  height = 56;
+  width = 56;
+
+  constructor(init?: Partial<SquareComponent>) {
+    super();
+    Object.assign(this, init);
+  }
+
+  start(ctx: RuntimeFrameContext): void {
+    const transform = this.entity.getComponent(Transform);
+    const renderer = ctx.services.require<Canvas2DRendererService>("renderer");
+
+    if (!transform) {
+      throw new Error("SquareComponent requires a Transform component.");
+    }
+
+    const { height, width } = renderer.bounds();
+    transform.x = Math.max(transform.x, 32);
+    transform.y = transform.y === 0 ? Math.floor(height / 2 - this.height / 2) : transform.y;
+
+    if (transform.x + this.width > width) {
+      transform.x = width - this.width - 16;
+    }
+  }
+
+  render(ctx: RuntimeFrameContext): void {
+    const transform = this.entity.getComponent(Transform);
+    const renderer = ctx.services.require<Canvas2DRendererService>("renderer");
+
+    if (!transform) {
+      return;
+    }
+
+    renderer.drawRect(transform.x, transform.y, this.width, this.height, this.color);
+  }
+
+  update(ctx: RuntimeFrameContext, dt: number): void {
+    const transform = this.entity.getComponent(Transform);
+    const input = ctx.services.require<InputService>("input");
+    const renderer = ctx.services.require<Canvas2DRendererService>("renderer");
+
+    if (!transform) {
+      return;
+    }
+
+    let velocityX = this.autoSpeed * this.autoDirection;
+    let velocityY = 0;
+
+    if (input.keyDown("ArrowLeft") || input.keyDown("KeyA")) {
+      velocityX = -this.controlSpeed;
+    } else if (input.keyDown("ArrowRight") || input.keyDown("KeyD")) {
+      velocityX = this.controlSpeed;
+    }
+
+    if (input.keyDown("ArrowUp") || input.keyDown("KeyW")) {
+      velocityY = -this.controlSpeed;
+    } else if (input.keyDown("ArrowDown") || input.keyDown("KeyS")) {
+      velocityY = this.controlSpeed;
+    }
+
+    transform.x += velocityX * dt;
+    transform.y += velocityY * dt;
+
+    const bounds = renderer.bounds();
+    const maxX = bounds.width - this.width - 16;
+    const maxY = bounds.height - this.height - 16;
+
+    if (transform.x <= 16) {
+      transform.x = 16;
+      this.autoDirection = 1;
+    } else if (transform.x >= maxX) {
+      transform.x = maxX;
+      this.autoDirection = -1;
+    }
+
+    if (transform.y <= 16) {
+      transform.y = 16;
+    } else if (transform.y >= maxY) {
+      transform.y = maxY;
+    }
+  }
+}
+
+function createSquare(data: Record<string, unknown> = {}): SquareComponent {
+  return new SquareComponent({
+    autoSpeed: typeof data.autoSpeed === "number" ? data.autoSpeed : 80,
+    color: typeof data.color === "string" ? data.color : "#ff7a1a",
+    controlSpeed: typeof data.controlSpeed === "number" ? data.controlSpeed : 200,
+    height: typeof data.height === "number" ? data.height : 56,
+    width: typeof data.width === "number" ? data.width : 56
+  });
+}
+
+const demoSquareModule: MGECModule = {
+  id: "@mge/demo-square",
+
+  setup(ctx) {
+    const ecs = ctx.services.require<ECSService>("ecs");
+
+    ecs.registerComponentFactory({
+      create: createSquare,
+      type: "Square"
+    } satisfies ComponentFactory);
+    ctx.log.info("Registered the Square component.");
+  },
+
+  start(ctx) {
+    const ecs = ctx.services.require<ECSService>("ecs");
+    const scene = ctx.services.require<SceneService>("scene").getActive();
+    const entity = ecs.createEntity("Demo Square", scene);
+
+    entity.addComponent(new Transform({ x: 32, y: 0 }));
+    entity.addComponent(new SquareComponent());
+    ctx.log.info("Spawned the demo square entity.");
+  }
+};
+
+export default demoSquareModule;
