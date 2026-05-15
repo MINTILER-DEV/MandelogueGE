@@ -39,6 +39,9 @@ describe("@mge/scripting-ts", () => {
         return new ScriptComponent(definition);
       },
       registerScript() {},
+      reloadScript() {
+        return 0;
+      },
       resolveScript() {
         return TestPlayerController;
       }

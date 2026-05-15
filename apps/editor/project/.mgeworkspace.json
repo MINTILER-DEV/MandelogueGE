@@ -1,7 +1,7 @@
 {
   "layout": {
     "left": ["hierarchy"],
-    "center": ["viewport"],
+    "center": ["viewport", "text-editor"],
     "right": ["inspector"],
     "bottom": ["console", "assets"]
   }

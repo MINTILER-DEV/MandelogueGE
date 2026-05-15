@@ -18,6 +18,19 @@ export interface EditorLogEntry {
   time: string;
 }
 
+export interface EditorEvent {
+  filePath?: string | null;
+  playing?: boolean;
+  type:
+    | "entity-selection-changed"
+    | "files-changed"
+    | "play-state-changed"
+    | "project-opened"
+    | "project-saved"
+    | "refresh"
+    | "file-selection-changed";
+}
+
 export interface EditorSavedProject {
   files: EditorProjectFile[];
   layout: Record<string, string[]>;
@@ -32,6 +45,7 @@ export interface EditorStorageLike {
 export interface EditorService {
   addEntity(name?: string): Entity;
   clearLogs(): void;
+  getProjectFile(path: string): EditorProjectFile | null;
   getLogs(): EditorLogEntry[];
   getProjectFiles(): EditorProjectFile[];
   getSelectedEntity(): Entity | null;
@@ -46,7 +60,13 @@ export interface EditorService {
   selectEntity(entity: Entity | null): void;
   selectFile(path: string | null): void;
   stop(): void;
+  subscribe(listener: (event: EditorEvent) => void): () => void;
   togglePlay(): void;
+  updateProjectFile(
+    path: string,
+    content: string,
+    options?: { kind?: EditorProjectFile["kind"]; select?: boolean }
+  ): EditorProjectFile;
 }
 
 interface EditorWorkspaceLayoutFile {
@@ -78,6 +98,13 @@ const editorCoreModule: MGECModule = {
     let playing = false;
     let liveRefreshHandle: ReturnType<typeof setInterval> | null = null;
     let playSnapshot: SerializedSceneData | null = null;
+    const listeners = new Set<(event: EditorEvent) => void>();
+
+    function emit(event: EditorEvent): void {
+      for (const listener of listeners) {
+        listener(event);
+      }
+    }
 
     function startLiveRefresh(): void {
       if (liveRefreshHandle || typeof globalThis.setInterval !== "function") {
@@ -123,6 +150,9 @@ const editorCoreModule: MGECModule = {
       clearLogs() {
         logs = [];
         editor.refresh();
+      },
+      getProjectFile(path) {
+        return projectFiles.find((file) => file.path === path) ?? null;
       },
       getLogs() {
         return [
@@ -173,6 +203,9 @@ const editorCoreModule: MGECModule = {
 
         if (!raw) {
           applyWorkspaceLayoutFromFiles(projectFiles, ui);
+          emit({ type: "files-changed" });
+          emit({ filePath: selectedFilePath, type: "file-selection-changed" });
+          emit({ playing: false, type: "play-state-changed" });
 
           if (!options?.silent) {
             editor.log("warn", "No saved project snapshot was found.");
@@ -200,6 +233,11 @@ const editorCoreModule: MGECModule = {
         ui.panels.applyLayout(saved.layout ?? resolveWorkspaceLayout(projectFiles));
         runtime.tick(0);
         ui.setStatus("Stopped");
+        emit({ type: "files-changed" });
+        emit({ type: "entity-selection-changed" });
+        emit({ filePath: selectedFilePath, type: "file-selection-changed" });
+        emit({ playing: false, type: "play-state-changed" });
+        emit({ type: "project-opened" });
 
         if (!options?.silent) {
           editor.log("info", "Loaded project snapshot.");
@@ -218,6 +256,7 @@ const editorCoreModule: MGECModule = {
         playing = true;
         startLiveRefresh();
         ui.setStatus("Playing");
+        emit({ playing: true, type: "play-state-changed" });
         editor.log("info", "Runtime playing.");
         editor.refresh();
       },
@@ -225,6 +264,7 @@ const editorCoreModule: MGECModule = {
         if (!playing) {
           runtime.tick(runtime.isRunning() ? undefined : 0);
         }
+        emit({ type: "refresh" });
         ui.invalidate();
       },
       saveProject() {
@@ -242,14 +282,18 @@ const editorCoreModule: MGECModule = {
         };
 
         storage?.setItem(editor.getStorageKey(), JSON.stringify(saved));
+        emit({ type: "files-changed" });
+        emit({ type: "project-saved" });
         editor.log("info", "Saved project snapshot.");
       },
       selectEntity(entity) {
         selectedEntity = entity;
+        emit({ type: "entity-selection-changed" });
         editor.refresh();
       },
       selectFile(path) {
         selectedFilePath = path;
+        emit({ filePath: selectedFilePath, type: "file-selection-changed" });
         editor.refresh();
       },
       stop() {
@@ -265,8 +309,16 @@ const editorCoreModule: MGECModule = {
         restorePlaySnapshot();
         ui.setStatus("Stopped");
         runtime.tick(0);
+        emit({ playing: false, type: "play-state-changed" });
         editor.log("info", "Runtime stopped and state restored.");
         editor.refresh();
+      },
+      subscribe(listener) {
+        listeners.add(listener);
+
+        return () => {
+          listeners.delete(listener);
+        };
       },
       togglePlay() {
         if (playing) {
@@ -275,6 +327,24 @@ const editorCoreModule: MGECModule = {
         }
 
         editor.play();
+      },
+      updateProjectFile(path, content, options) {
+        const current = editor.getProjectFile(path);
+        const nextFile: EditorProjectFile = {
+          content,
+          kind: options?.kind ?? current?.kind ?? "other",
+          path
+        };
+
+        projectFiles = upsertProjectFile(projectFiles, nextFile);
+
+        if (options?.select) {
+          selectedFilePath = path;
+          emit({ filePath: selectedFilePath, type: "file-selection-changed" });
+        }
+
+        emit({ type: "files-changed" });
+        return nextFile;
       }
     };
 

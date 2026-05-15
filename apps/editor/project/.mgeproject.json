@@ -18,7 +18,7 @@
     "@mge/editor-hierarchy": "^0.1.0",
     "@mge/editor-inspector": "^0.1.0",
     "@mge/editor-console": "^0.1.0",
-    "@mge/editor-assets": "^0.1.0"
+    "@mge/editor-assets": "^0.1.0",
+    "@mge/editor-text": "^0.1.0"
   }
 }
-

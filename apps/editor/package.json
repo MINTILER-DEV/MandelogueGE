@@ -17,14 +17,15 @@
     "@mge/editor-core": "workspace:*",
     "@mge/editor-hierarchy": "workspace:*",
     "@mge/editor-inspector": "workspace:*",
+    "@mge/editor-text": "workspace:*",
     "@mge/editor-viewport": "workspace:*",
     "@mge/input": "workspace:*",
     "@mge/kernel": "workspace:*",
     "@mge/mgengineui": "workspace:*",
+    "monaco-editor": "^0.52.2",
     "@mge/renderer-canvas2d": "workspace:*",
     "@mge/scene": "workspace:*",
     "@mge/scripting-ts": "workspace:*",
     "@mge/time": "workspace:*"
   }
 }
-

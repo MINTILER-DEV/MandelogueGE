@@ -1,4 +1,4 @@
-import { Component, type ComponentFactory, type RuntimeFrameContext, type Script } from "@mge/core";
+import { Component, type ComponentFactory, type Runtime, type RuntimeFrameContext, type Script } from "@mge/core";
 import type { ECSService } from "@mge/ecs";
 import type { MGECModule } from "@mge/kernel";
 
@@ -16,6 +16,7 @@ export interface ScriptComponentDefinition {
 export interface ScriptRuntimeService {
   createScriptComponent(definition: ScriptComponentDefinition): ScriptComponent;
   registerScript(scriptPath: string, moduleLike: ScriptModuleLike): void;
+  reloadScript(scriptPath: string): number;
   resolveScript(scriptPath: string): ScriptConstructor;
 }
 
@@ -43,12 +44,27 @@ export class ScriptComponent extends Component {
   }
 
   destroy(ctx: RuntimeFrameContext): void {
+    this.#destroyInstance(ctx);
+  }
+
+  #createInstance(ScriptClass: ScriptConstructor, ctx: RuntimeFrameContext): void {
+    const instance = new ScriptClass();
+
+    Object.assign(instance, this.properties);
+    instance.attach(this.entity);
+    instance.setFrameContext(ctx);
+    instance.start();
+    this.#instance = instance;
+  }
+
+  #destroyInstance(ctx: RuntimeFrameContext): void {
     if (!this.#instance) {
       return;
     }
 
     this.#instance.setFrameContext(ctx);
     this.#instance.destroy();
+    this.#instance = null;
   }
 
   get instance(): Script | null {
@@ -70,14 +86,17 @@ export class ScriptComponent extends Component {
     }
 
     const runtime = ctx.services.require<ScriptRuntimeService>("script-runtime");
-    const ScriptClass = runtime.resolveScript(this.script);
-    const instance = new ScriptClass();
+    this.#createInstance(runtime.resolveScript(this.script), ctx);
+  }
 
-    Object.assign(instance, this.properties);
-    instance.attach(this.entity);
-    instance.setFrameContext(ctx);
-    instance.start();
-    this.#instance = instance;
+  reload(ctx: RuntimeFrameContext, ScriptClass?: ScriptConstructor): void {
+    if (!this.script) {
+      return;
+    }
+
+    const runtime = ctx.services.require<ScriptRuntimeService>("script-runtime");
+    this.#destroyInstance(ctx);
+    this.#createInstance(ScriptClass ?? runtime.resolveScript(this.script), ctx);
   }
 
   update(ctx: RuntimeFrameContext, dt: number): void {
@@ -106,6 +125,7 @@ const scriptingTsModule: MGECModule = {
 
   setup(ctx) {
     const scripts = new Map<string, ScriptConstructor>();
+    const runtime = ctx.services.require<Runtime>("runtime");
     const hostSources = ctx.services.has("host:script-sources")
       ? ctx.services.require<ScriptSourceRegistry>("host:script-sources")
       : {};
@@ -116,6 +136,30 @@ const scriptingTsModule: MGECModule = {
       },
       registerScript(scriptPath, moduleLike) {
         scripts.set(scriptPath, normalizeScriptConstructor(moduleLike));
+      },
+      reloadScript(scriptPath) {
+        const scene = runtime.getScene();
+
+        if (!scene) {
+          return 0;
+        }
+
+        const ScriptClass = scriptRuntime.resolveScript(scriptPath);
+        const frameContext = createReloadFrameContext(runtime, scene);
+        let reloadedCount = 0;
+
+        for (const entity of scene.entities) {
+          for (const component of entity.components) {
+            if (!(component instanceof ScriptComponent) || component.script !== scriptPath || !component.started) {
+              continue;
+            }
+
+            component.reload(frameContext, ScriptClass);
+            reloadedCount += 1;
+          }
+        }
+
+        return reloadedCount;
       },
       resolveScript(scriptPath) {
         const ScriptClass = scripts.get(scriptPath);
@@ -151,5 +195,16 @@ const scriptingTsModule: MGECModule = {
     ctx.log.info(`Registered TypeScript scripting with ${scripts.size} script source(s).`);
   }
 };
+
+function createReloadFrameContext(runtime: Runtime, scene: ReturnType<Runtime["getActiveScene"]>): RuntimeFrameContext {
+  return {
+    dt: 0,
+    elapsed: 0,
+    frame: 0,
+    runtime,
+    scene,
+    services: runtime.services
+  };
+}
 
 export default scriptingTsModule;
