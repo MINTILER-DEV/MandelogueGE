@@ -35,17 +35,13 @@ const editorConsoleModule: MGECModule = {
 
         for (const entry of logs) {
           const line = document.createElement("div");
-          line.className = "mge-stack";
-          line.style.background = "rgba(255,255,255,0.04)";
-          line.style.border = "1px solid rgba(255,255,255,0.06)";
-          line.style.borderRadius = "0.9rem";
-          line.style.padding = "0.75rem";
+          line.className = "mge-log-entry";
           const header = document.createElement("strong");
           header.textContent = `[${entry.level}] ${entry.source}`;
           const message = document.createElement("span");
           message.textContent = entry.message;
           const time = document.createElement("small");
-          time.style.color = "var(--mge-text-muted)";
+          time.className = "mge-log-entry__meta";
           time.textContent = entry.time;
           line.append(header, message, time);
           stack.append(line);

@@ -15,10 +15,10 @@ const editorViewportModule: MGECModule = {
         const editor = ctx.services.require<EditorService>("editor");
         const canvas = ctx.services.require<HTMLCanvasElement>("host:viewport-canvas");
         const stack = document.createElement("div");
-        stack.className = "mge-stack";
+        stack.className = "mge-viewport-panel";
 
         const toolbar = document.createElement("div");
-        toolbar.className = "mge-menu-row";
+        toolbar.className = "mge-viewport-toolbar";
         toolbar.append(
           ui.button.create({
             label: editor.isPlaying() ? "Stop" : "Play",
@@ -34,11 +34,7 @@ const editorViewportModule: MGECModule = {
         stack.append(toolbar);
 
         const frame = document.createElement("div");
-        frame.style.background = "rgba(255,255,255,0.03)";
-        frame.style.border = "1px solid rgba(255,255,255,0.08)";
-        frame.style.borderRadius = "1rem";
-        frame.style.minHeight = "24rem";
-        frame.style.overflow = "hidden";
+        frame.className = "mge-viewport-frame";
         frame.append(canvas);
         stack.append(frame);
 

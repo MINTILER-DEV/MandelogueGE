@@ -31,7 +31,7 @@ const editorInspectorModule: MGECModule = {
 
         for (const component of entity.components) {
           const section = document.createElement("section");
-          section.className = "mge-stack";
+          section.className = "mge-section mge-stack";
 
           const title = document.createElement("strong");
           title.textContent = component.constructor.name;
@@ -106,7 +106,7 @@ function isRecord(value: unknown): value is Record<string, boolean | number | st
 
 function renderEntityHeader(entity: Entity, editor: EditorService, ui: MGEngineUIService): HTMLElement {
   const stack = document.createElement("div");
-  stack.className = "mge-stack";
+  stack.className = "mge-section mge-stack";
   stack.append(
     ui.propertyGrid.render([
       {

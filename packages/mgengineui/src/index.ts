@@ -108,6 +108,15 @@ const DEFAULT_LAYOUT: Record<PanelZone, string[]> = {
   left: [],
   right: []
 };
+const DEFAULT_PANEL_SIZES = {
+  bottom: 180,
+  left: 248,
+  right: 300
+} as const;
+const MIN_BOTTOM_PANEL_SIZE = 120;
+const MIN_CENTER_PANEL_SIZE = 360;
+const MIN_SIDE_PANEL_SIZE = 180;
+const MIN_TOP_PANEL_SIZE = 240;
 
 const mgengineuiModule: MGECModule = {
   id: "@mge/mgengineui",
@@ -134,6 +143,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
   let paletteQuery = "";
   let modalDefinition: MGEngineUIModalDefinition | null = null;
   let statusText = "Idle";
+  const panelSizes: Record<keyof typeof DEFAULT_PANEL_SIZES, number> = { ...DEFAULT_PANEL_SIZES };
   const commands = new Map<string, MGEngineUICommandDefinition>();
   const layout = structuredClone(DEFAULT_LAYOUT);
   const activeByZone: Record<PanelZone, string | null> = {
@@ -419,6 +429,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
   function renderPanel(zone: PanelZone): HTMLElement {
     const panelRoot = document.createElement("section");
     panelRoot.className = `mge-panel-zone mge-panel-zone--${zone}`;
+    panelRoot.dataset.zone = zone;
 
     const panelIds = layout[zone].filter((panelId) => panels.has(panelId));
 
@@ -453,6 +464,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
 
     const frame = document.createElement("div");
     frame.className = "mge-panel-frame";
+    frame.dataset.panelId = panel.id;
 
     const header = document.createElement("div");
     header.className = "mge-panel-frame__header";
@@ -478,7 +490,9 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
     frame.append(header);
 
     const content = document.createElement("div");
-    content.className = "mge-panel-frame__content";
+    content.className =
+      panel.id === "viewport" ? "mge-panel-frame__content mge-panel-frame__content--viewport" : "mge-panel-frame__content";
+    content.dataset.panelId = panel.id;
     content.append(panel.render(ui));
     frame.append(content);
 
@@ -570,16 +584,85 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
   function renderWorkspace(): HTMLElement {
     const workspace = document.createElement("main");
     workspace.className = "mge-workspace";
+    applyWorkspaceSizes(workspace);
     workspace.append(
       renderPanel("left"),
+      createResizeHandle("left", workspace),
       renderPanel("center"),
+      createResizeHandle("right", workspace),
       renderPanel("right"),
+      createResizeHandle("bottom", workspace),
       renderPanel("bottom")
     );
     return workspace;
   }
 
+  function applyWorkspaceSizes(workspace: HTMLElement): void {
+    workspace.style.setProperty("--mge-left-size", `${panelSizes.left}px`);
+    workspace.style.setProperty("--mge-right-size", `${panelSizes.right}px`);
+    workspace.style.setProperty("--mge-bottom-size", `${panelSizes.bottom}px`);
+  }
+
+  function createResizeHandle(zone: "bottom" | "left" | "right", workspace: HTMLElement): HTMLElement {
+    const handle = document.createElement("div");
+    handle.className = `mge-resize-handle mge-resize-handle--${zone}`;
+    handle.addEventListener("pointerdown", (event) => startResize(zone, workspace, handle, event));
+    return handle;
+  }
+
+  function startResize(
+    zone: "bottom" | "left" | "right",
+    workspace: HTMLElement,
+    handle: HTMLElement,
+    event: PointerEvent
+  ): void {
+    event.preventDefault();
+
+    const documentRef = workspace.ownerDocument;
+    const body = documentRef.body;
+
+    handle.classList.add("is-dragging");
+    body.classList.add(zone === "bottom" ? "mge-is-resizing-row" : "mge-is-resizing-col");
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const bounds = workspace.getBoundingClientRect();
+
+      if (zone === "left") {
+        const maxLeft = Math.max(
+          MIN_SIDE_PANEL_SIZE,
+          bounds.width - panelSizes.right - MIN_CENTER_PANEL_SIZE - 10
+        );
+        panelSizes.left = clamp(moveEvent.clientX - bounds.left, MIN_SIDE_PANEL_SIZE, maxLeft);
+      } else if (zone === "right") {
+        const maxRight = Math.max(
+          MIN_SIDE_PANEL_SIZE,
+          bounds.width - panelSizes.left - MIN_CENTER_PANEL_SIZE - 10
+        );
+        panelSizes.right = clamp(bounds.right - moveEvent.clientX, MIN_SIDE_PANEL_SIZE, maxRight);
+      } else {
+        const maxBottom = Math.max(MIN_BOTTOM_PANEL_SIZE, bounds.height - MIN_TOP_PANEL_SIZE - 10);
+        panelSizes.bottom = clamp(bounds.bottom - moveEvent.clientY, MIN_BOTTOM_PANEL_SIZE, maxBottom);
+      }
+
+      applyWorkspaceSizes(workspace);
+    };
+
+    const stop = () => {
+      handle.classList.remove("is-dragging");
+      body.classList.remove("mge-is-resizing-col", "mge-is-resizing-row");
+      documentRef.removeEventListener("pointermove", onPointerMove);
+      documentRef.removeEventListener("pointerup", stop);
+    };
+
+    documentRef.addEventListener("pointermove", onPointerMove);
+    documentRef.addEventListener("pointerup", stop);
+  }
+
   return ui;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function createPropertyField(row: MGEngineUIPropertyRowDefinition): HTMLElement {
@@ -619,59 +702,88 @@ function ensureStyles(documentRef: Document): void {
   style.id = STYLE_ID;
   style.textContent = `
     :root {
-      --mge-bg: #11141b;
-      --mge-bg-alt: #161c25;
-      --mge-panel: rgba(16, 18, 24, 0.82);
-      --mge-line: rgba(255, 255, 255, 0.08);
-      --mge-text: #f0eee7;
-      --mge-text-muted: #aab2c1;
-      --mge-accent: #ff7a1a;
-      --mge-accent-soft: rgba(255, 122, 26, 0.18);
-      --mge-danger: #ff5f56;
+      --mge-bg: #262626;
+      --mge-bg-alt: #303030;
+      --mge-bg-strong: #1b1b1b;
+      --mge-panel: #353535;
+      --mge-panel-alt: #2b2b2b;
+      --mge-panel-strong: #202020;
+      --mge-line: #171717;
+      --mge-line-soft: #484848;
+      --mge-text: #d4d4d4;
+      --mge-text-muted: #989898;
+      --mge-accent: #4c7ca5;
+      --mge-accent-strong: #2f5f88;
+      --mge-accent-soft: rgba(76, 124, 165, 0.24);
+      --mge-danger: #b85a5a;
       color: var(--mge-text);
-      font-family: "Segoe UI Variable Display", "Trebuchet MS", "Gill Sans", sans-serif;
+      font-family: Tahoma, "Segoe UI", sans-serif;
+      font-size: 12px;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      background: var(--mge-bg-strong);
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+    body,
+    button,
+    input,
+    select,
+    textarea {
+      color: var(--mge-text);
+      font: inherit;
+    }
+    #editor-root {
+      height: 100%;
+      position: relative;
+      width: 100%;
     }
     .mge-shell {
-      background:
-        radial-gradient(circle at top left, rgba(255, 122, 26, 0.16), transparent 28%),
-        radial-gradient(circle at right, rgba(73, 145, 255, 0.12), transparent 30%),
-        linear-gradient(180deg, #131720 0%, #0a0c11 100%);
+      background: linear-gradient(180deg, #313131 0%, #262626 100%);
       color: var(--mge-text);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
       min-height: 100vh;
     }
     .mge-topbar {
       align-items: center;
-      backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--mge-line);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
       display: grid;
-      gap: 1rem;
-      grid-template-columns: minmax(12rem, 18rem) 1fr auto auto;
-      padding: 0.85rem 1rem;
+      gap: 0.4rem 0.75rem;
+      grid-template-columns: minmax(10rem, auto) 1fr auto auto;
+      padding: 0.35rem 0.5rem;
       position: sticky;
       top: 0;
       z-index: 10;
     }
     .mge-brand {
       display: grid;
-      gap: 0.15rem;
+      gap: 0.05rem;
     }
     .mge-brand strong {
-      font-size: 1rem;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
     }
     .mge-brand span,
     .mge-status,
     .mge-empty {
       color: var(--mge-text-muted);
-      font-size: 0.9rem;
+      font-size: 0.82rem;
     }
     .mge-menu-row,
     .mge-toolbar {
       align-items: center;
       display: flex;
       flex-wrap: wrap;
-      gap: 0.5rem;
+      gap: 0.25rem;
     }
     .mge-menu {
       position: relative;
@@ -681,50 +793,67 @@ function ensureStyles(documentRef: Document): void {
     .mge-tab,
     .mge-palette__item,
     .mge-menu__item {
-      background: rgba(255, 255, 255, 0.04);
+      background: linear-gradient(180deg, #3c3c3c 0%, #323232 100%);
       border: 1px solid var(--mge-line);
-      border-radius: 999px;
       color: var(--mge-text);
       cursor: pointer;
-      padding: 0.45rem 0.8rem;
+      min-height: 1.95rem;
+      padding: 0.3rem 0.65rem;
+      text-align: left;
+    }
+    .mge-menu__trigger:hover,
+    .mge-ui-button:hover,
+    .mge-tab:hover,
+    .mge-palette__item:hover,
+    .mge-menu__item:hover {
+      background: linear-gradient(180deg, #444444 0%, #363636 100%);
     }
     .mge-ui-button--accent {
-      background: linear-gradient(135deg, #ff7a1a, #ff4d39);
-      border-color: transparent;
+      background: linear-gradient(180deg, #5b8ab3 0%, var(--mge-accent-strong) 100%);
+      border-color: #244662;
     }
     .mge-ui-button--ghost,
     .mge-tab.is-active {
-      background: rgba(255, 255, 255, 0.1);
+      background: linear-gradient(180deg, #434343 0%, #383838 100%);
+    }
+    .mge-tab.is-active {
+      box-shadow: inset 0 2px 0 var(--mge-accent);
     }
     .mge-menu__dropdown {
-      background: rgba(13, 16, 22, 0.96);
+      background: #2b2b2b;
       border: 1px solid var(--mge-line);
-      border-radius: 1rem;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
       display: grid;
-      gap: 0.35rem;
+      gap: 1px;
       min-width: 10rem;
-      padding: 0.5rem;
+      padding: 0.2rem;
       position: absolute;
-      top: calc(100% + 0.35rem);
+      top: calc(100% + 0.2rem);
     }
     .mge-workspace {
+      --mge-bottom-size: 180px;
+      --mge-left-size: 248px;
+      --mge-right-size: 300px;
+      --mge-splitter-size: 5px;
+      background: var(--mge-bg-strong);
       display: grid;
-      gap: 0.9rem;
       grid-template-areas:
-        "left center right"
-        "bottom bottom bottom";
-      grid-template-columns: minmax(15rem, 18rem) 1fr minmax(17rem, 21rem);
-      grid-template-rows: minmax(28rem, 1fr) minmax(13rem, 16rem);
-      min-height: calc(100vh - 4.75rem);
-      padding: 0.9rem;
+        "left left-resize center right-resize right"
+        "bottom-resize bottom-resize bottom-resize bottom-resize bottom-resize"
+        "bottom bottom bottom bottom bottom";
+      grid-template-columns:
+        minmax(${MIN_SIDE_PANEL_SIZE}px, var(--mge-left-size))
+        var(--mge-splitter-size)
+        minmax(0, 1fr)
+        var(--mge-splitter-size)
+        minmax(${MIN_SIDE_PANEL_SIZE}px, var(--mge-right-size));
+      grid-template-rows: minmax(0, 1fr) var(--mge-splitter-size) minmax(${MIN_BOTTOM_PANEL_SIZE}px, var(--mge-bottom-size));
+      min-height: 0;
     }
     .mge-panel-zone {
-      backdrop-filter: blur(14px);
       background: var(--mge-panel);
       border: 1px solid var(--mge-line);
-      border-radius: 1.2rem;
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.2);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -734,12 +863,60 @@ function ensureStyles(documentRef: Document): void {
     .mge-panel-zone--center { grid-area: center; }
     .mge-panel-zone--right { grid-area: right; }
     .mge-panel-zone--bottom { grid-area: bottom; }
+    .mge-panel-zone--center {
+      background: var(--mge-panel-strong);
+    }
+    .mge-resize-handle {
+      background: #202020;
+      position: relative;
+      touch-action: none;
+      z-index: 2;
+    }
+    .mge-resize-handle::after {
+      background: #505050;
+      content: "";
+      opacity: 0.65;
+      position: absolute;
+    }
+    .mge-resize-handle:hover::after,
+    .mge-resize-handle.is-dragging::after {
+      background: var(--mge-accent);
+      opacity: 1;
+    }
+    .mge-resize-handle--left {
+      cursor: col-resize;
+      grid-area: left-resize;
+    }
+    .mge-resize-handle--left::after,
+    .mge-resize-handle--right::after {
+      inset: 0 2px;
+    }
+    .mge-resize-handle--right {
+      cursor: col-resize;
+      grid-area: right-resize;
+    }
+    .mge-resize-handle--bottom {
+      cursor: row-resize;
+      grid-area: bottom-resize;
+    }
+    .mge-resize-handle--bottom::after {
+      inset: 2px 0;
+    }
+    .mge-is-resizing-col {
+      cursor: col-resize;
+      user-select: none;
+    }
+    .mge-is-resizing-row {
+      cursor: row-resize;
+      user-select: none;
+    }
     .mge-tabs {
+      background: #252525;
       border-bottom: 1px solid var(--mge-line);
       display: flex;
-      gap: 0.5rem;
+      gap: 1px;
       overflow-x: auto;
-      padding: 0.6rem;
+      padding: 0;
     }
     .mge-panel-frame,
     .mge-panel-frame__content {
@@ -750,63 +927,69 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-panel-frame__header {
       align-items: center;
+      background: linear-gradient(180deg, #3a3a3a 0%, #313131 100%);
       border-bottom: 1px solid var(--mge-line);
       display: flex;
       justify-content: space-between;
-      padding: 0.75rem 0.9rem;
+      padding: 0.35rem 0.5rem;
     }
     .mge-panel-frame__content {
+      background: var(--mge-panel-alt);
       overflow: auto;
-      padding: 0.9rem;
+      padding: 0.5rem;
+    }
+    .mge-panel-frame__content--viewport {
+      background: #1a1a1a;
+      overflow: hidden;
+      padding: 0;
     }
     .mge-dock-select,
     .mge-property-row input,
     .mge-property-row textarea,
     .mge-palette__input {
-      background: rgba(255, 255, 255, 0.05);
+      background: #262626;
       border: 1px solid var(--mge-line);
-      border-radius: 0.75rem;
       color: var(--mge-text);
-      padding: 0.55rem 0.7rem;
+      min-height: 1.9rem;
+      padding: 0.3rem 0.45rem;
     }
     .mge-tree,
     .mge-property-grid,
     .mge-stack {
       display: grid;
-      gap: 0.6rem;
+      gap: 0.4rem;
     }
     .mge-tree-node {
       align-items: center;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid transparent;
-      border-radius: 0.9rem;
+      background: #373737;
+      border: 1px solid #262626;
       cursor: pointer;
       display: flex;
       justify-content: space-between;
-      padding: 0.65rem 0.8rem;
+      padding: 0.4rem 0.5rem;
     }
     .mge-tree-node.is-selected {
       background: var(--mge-accent-soft);
-      border-color: rgba(255, 122, 26, 0.45);
+      border-color: var(--mge-accent);
     }
     .mge-tree-children {
-      border-left: 1px solid var(--mge-line);
-      margin-left: 0.75rem;
-      padding-left: 0.75rem;
+      border-left: 1px solid #404040;
+      margin-left: 0.6rem;
+      padding-left: 0.6rem;
     }
     .mge-property-row {
       align-items: center;
       display: grid;
-      gap: 0.5rem;
-      grid-template-columns: minmax(6rem, 9rem) 1fr;
+      gap: 0.35rem;
+      grid-template-columns: minmax(5.5rem, 7.5rem) 1fr;
     }
     .mge-property-row__label {
       color: var(--mge-text-muted);
-      font-size: 0.88rem;
+      font-size: 0.8rem;
     }
     .mge-overlay {
       align-items: center;
-      background: rgba(4, 5, 8, 0.6);
+      background: rgba(8, 8, 8, 0.58);
       display: flex;
       inset: 0;
       justify-content: center;
@@ -815,19 +998,53 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-modal,
     .mge-palette {
-      background: rgba(15, 17, 22, 0.98);
+      background: #2b2b2b;
       border: 1px solid var(--mge-line);
-      border-radius: 1.25rem;
-      box-shadow: 0 32px 90px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 24px 52px rgba(0, 0, 0, 0.45);
       display: grid;
-      gap: 0.8rem;
-      padding: 1rem;
+      gap: 0.5rem;
+      padding: 0.75rem;
       width: min(38rem, calc(100vw - 2rem));
     }
     .mge-modal__header {
       align-items: center;
       display: flex;
       justify-content: space-between;
+    }
+    .mge-section {
+      background: #313131;
+      border: 1px solid #252525;
+      padding: 0.45rem;
+    }
+    .mge-viewport-panel {
+      background: #1a1a1a;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100%;
+    }
+    .mge-viewport-toolbar {
+      align-items: center;
+      background: #2a2a2a;
+      border-bottom: 1px solid var(--mge-line);
+      display: flex;
+      gap: 0.25rem;
+      padding: 0.35rem 0.45rem;
+    }
+    .mge-viewport-frame {
+      background: #171717;
+      min-height: 24rem;
+      overflow: hidden;
+    }
+    .mge-log-entry {
+      background: #313131;
+      border: 1px solid #252525;
+      display: grid;
+      gap: 0.2rem;
+      padding: 0.45rem 0.55rem;
+    }
+    .mge-log-entry__meta {
+      color: var(--mge-text-muted);
+      font-size: 0.78rem;
     }
     @media (max-width: 1080px) {
       .mge-topbar {
@@ -841,6 +1058,9 @@ function ensureStyles(documentRef: Document): void {
           "bottom";
         grid-template-columns: 1fr;
         grid-template-rows: minmax(24rem, 1fr) repeat(3, minmax(14rem, auto));
+      }
+      .mge-resize-handle {
+        display: none;
       }
     }
   `;
