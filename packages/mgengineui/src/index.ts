@@ -101,6 +101,15 @@ export interface MGEngineUIService {
   };
 }
 
+interface FocusedPropertyFieldSnapshot {
+  fieldKey: string;
+  panelId: string;
+  selectionEnd: number | null;
+  selectionStart: number | null;
+  tagName: "INPUT" | "TEXTAREA";
+  value: string;
+}
+
 const STYLE_ID = "mge-mgengineui-styles";
 const DEFAULT_LAYOUT: Record<PanelZone, string[]> = {
   bottom: [],
@@ -162,7 +171,21 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
         button.className = `mge-ui-button mge-ui-button--${definition.variant ?? "subtle"}`;
         button.textContent = definition.label;
         button.title = definition.title ?? definition.label;
-        button.addEventListener("click", definition.onClick);
+        button.type = "button";
+        button.addEventListener("pointerdown", (event) => {
+          if (event.button !== 0) {
+            return;
+          }
+
+          event.preventDefault();
+          definition.onClick();
+        });
+        button.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            definition.onClick();
+          }
+        });
         return button;
       }
     },
@@ -278,7 +301,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
           return grid;
         }
 
-        for (const row of rows) {
+        for (const [index, row] of rows.entries()) {
           const label = document.createElement("label");
           label.className = "mge-property-row";
 
@@ -287,7 +310,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
           name.textContent = row.label;
           label.append(name);
 
-          const field = createPropertyField(row);
+          const field = createPropertyField(row, `${index}:${row.label}`);
           label.append(field);
           grid.append(label);
         }
@@ -326,6 +349,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
   };
 
   function render(): void {
+    const focusedPropertyField = captureFocusedPropertyField(root.ownerDocument);
     root.replaceChildren();
 
     const shell = document.createElement("div");
@@ -342,6 +366,7 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
     }
 
     root.append(shell);
+    restoreFocusedPropertyField(root.ownerDocument, focusedPropertyField);
   }
 
   function renderCommandPalette(): HTMLElement {
@@ -665,7 +690,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function createPropertyField(row: MGEngineUIPropertyRowDefinition): HTMLElement {
+function createPropertyField(row: MGEngineUIPropertyRowDefinition, fieldKey: string): HTMLElement {
   if (row.kind === "boolean") {
     const input = document.createElement("input");
     input.type = "checkbox";
@@ -677,6 +702,7 @@ function createPropertyField(row: MGEngineUIPropertyRowDefinition): HTMLElement 
 
   if (row.kind === "textarea") {
     const textarea = document.createElement("textarea");
+    textarea.dataset.mgeFieldKey = fieldKey;
     textarea.value = String(row.value);
     textarea.readOnly = row.readOnly ?? false;
     textarea.addEventListener("change", () => row.onChange?.(textarea.value));
@@ -684,6 +710,7 @@ function createPropertyField(row: MGEngineUIPropertyRowDefinition): HTMLElement 
   }
 
   const input = document.createElement("input");
+  input.dataset.mgeFieldKey = fieldKey;
   input.type = row.kind === "number" ? "number" : "text";
   input.value = String(row.value);
   input.readOnly = row.readOnly ?? false;
@@ -691,6 +718,68 @@ function createPropertyField(row: MGEngineUIPropertyRowDefinition): HTMLElement 
     row.onChange?.(row.kind === "number" ? Number(input.value) : input.value);
   });
   return input;
+}
+
+function captureFocusedPropertyField(documentRef: Document): FocusedPropertyFieldSnapshot | null {
+  const activeElement = documentRef.activeElement;
+
+  if (!(activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)) {
+    return null;
+  }
+
+  const fieldKey = activeElement.dataset.mgeFieldKey;
+  const panelId = activeElement.closest<HTMLElement>("[data-panel-id]")?.dataset.panelId;
+
+  if (!fieldKey || !panelId || !activeElement.closest(".mge-property-grid")) {
+    return null;
+  }
+
+  return {
+    fieldKey,
+    panelId,
+    selectionEnd: typeof activeElement.selectionEnd === "number" ? activeElement.selectionEnd : null,
+    selectionStart: typeof activeElement.selectionStart === "number" ? activeElement.selectionStart : null,
+    tagName: activeElement.tagName as "INPUT" | "TEXTAREA",
+    value: activeElement.value
+  };
+}
+
+function restoreFocusedPropertyField(
+  documentRef: Document,
+  snapshot: FocusedPropertyFieldSnapshot | null
+): void {
+  if (!snapshot) {
+    return;
+  }
+
+  const selector = `[data-panel-id="${snapshot.panelId}"] [data-mge-field-key="${snapshot.fieldKey}"]`;
+  const field = documentRef.querySelector(selector);
+
+  if (snapshot.tagName === "INPUT") {
+    if (!(field instanceof HTMLInputElement)) {
+      return;
+    }
+
+    field.value = snapshot.value;
+    field.focus();
+
+    if (snapshot.selectionStart !== null && snapshot.selectionEnd !== null) {
+      field.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+    }
+
+    return;
+  }
+
+  if (!(field instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  field.value = snapshot.value;
+  field.focus();
+
+  if (snapshot.selectionStart !== null && snapshot.selectionEnd !== null) {
+    field.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+  }
 }
 
 function ensureStyles(documentRef: Document): void {
@@ -744,7 +833,7 @@ function ensureStyles(documentRef: Document): void {
       width: 100%;
     }
     .mge-shell {
-      background: linear-gradient(180deg, #313131 0%, #262626 100%);
+      background: #2b2b2b;
       color: var(--mge-text);
       display: grid;
       grid-template-rows: auto 1fr;
@@ -793,7 +882,7 @@ function ensureStyles(documentRef: Document): void {
     .mge-tab,
     .mge-palette__item,
     .mge-menu__item {
-      background: linear-gradient(180deg, #3c3c3c 0%, #323232 100%);
+      background: #373737;
       border: 1px solid var(--mge-line);
       color: var(--mge-text);
       cursor: pointer;
@@ -806,15 +895,15 @@ function ensureStyles(documentRef: Document): void {
     .mge-tab:hover,
     .mge-palette__item:hover,
     .mge-menu__item:hover {
-      background: linear-gradient(180deg, #444444 0%, #363636 100%);
+      background: #414141;
     }
     .mge-ui-button--accent {
-      background: linear-gradient(180deg, #5b8ab3 0%, var(--mge-accent-strong) 100%);
+      background: var(--mge-accent-strong);
       border-color: #244662;
     }
     .mge-ui-button--ghost,
     .mge-tab.is-active {
-      background: linear-gradient(180deg, #434343 0%, #383838 100%);
+      background: #404040;
     }
     .mge-tab.is-active {
       box-shadow: inset 0 2px 0 var(--mge-accent);
@@ -927,7 +1016,7 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-panel-frame__header {
       align-items: center;
-      background: linear-gradient(180deg, #3a3a3a 0%, #313131 100%);
+      background: #343434;
       border-bottom: 1px solid var(--mge-line);
       display: flex;
       justify-content: space-between;
@@ -1032,8 +1121,47 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-viewport-frame {
       background: #171717;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       min-height: 24rem;
       overflow: hidden;
+      padding: 0.5rem;
+      position: relative;
+    }
+    .mge-viewport-frame--live {
+      padding: 0;
+    }
+    .mge-viewport-stage {
+      background: #111111;
+      border: 1px solid #0d0d0d;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+      overflow: hidden;
+      position: relative;
+    }
+    .mge-viewport-stage--preview {
+      aspect-ratio: 16 / 9;
+      height: auto;
+      max-height: 100%;
+      max-width: 100%;
+      width: min(100%, calc((100vh - 14rem) * 16 / 9));
+    }
+    .mge-viewport-stage--live {
+      height: 100%;
+      width: 100%;
+    }
+    .mge-viewport-stage canvas {
+      display: block;
+      height: 100%;
+      width: 100%;
+    }
+    .mge-viewport-status,
+    .mge-viewport-hint {
+      color: var(--mge-text-muted);
+      font-size: 0.78rem;
+    }
+    .mge-viewport-status {
+      margin-left: auto;
     }
     .mge-log-entry {
       background: #313131;

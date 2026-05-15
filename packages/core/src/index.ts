@@ -203,8 +203,8 @@ export class Scene {
     }
   }
 
-  createEntity(name: string): Entity {
-    const entity = new Entity(name);
+  createEntity(name: string, id?: string): Entity {
+    const entity = new Entity(name, id);
     return this.addEntity(entity);
   }
 

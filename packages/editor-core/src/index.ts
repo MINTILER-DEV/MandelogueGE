@@ -76,6 +76,40 @@ const editorCoreModule: MGECModule = {
     let selectedEntity: Entity | null = null;
     let selectedFilePath: string | null = projectFiles[0]?.path ?? null;
     let playing = false;
+    let liveRefreshHandle: ReturnType<typeof setInterval> | null = null;
+    let playSnapshot: SerializedSceneData | null = null;
+
+    function startLiveRefresh(): void {
+      if (liveRefreshHandle || typeof globalThis.setInterval !== "function") {
+        return;
+      }
+
+      liveRefreshHandle = globalThis.setInterval(() => {
+        if (playing) {
+          ui.invalidate();
+        }
+      }, 100);
+    }
+
+    function stopLiveRefresh(): void {
+      if (!liveRefreshHandle || typeof globalThis.clearInterval !== "function") {
+        return;
+      }
+
+      globalThis.clearInterval(liveRefreshHandle);
+      liveRefreshHandle = null;
+    }
+
+    function restorePlaySnapshot(): void {
+      if (!playSnapshot) {
+        return;
+      }
+
+      const selectedEntityId = selectedEntity?.id ?? null;
+      ecs.restoreScene(playSnapshot, scene.getActive());
+      playSnapshot = null;
+      selectedEntity = selectedEntityId ? findEntityById(scene.getActive().entities, selectedEntityId) : null;
+    }
 
     const editor: EditorService = {
       addEntity(name = `Entity ${scene.getActive().entities.length + 1}`) {
@@ -131,6 +165,10 @@ const editorCoreModule: MGECModule = {
         editor.refresh();
       },
       openProject(options) {
+        stopLiveRefresh();
+        runtime.stopLoop();
+        playing = false;
+        playSnapshot = null;
         const raw = storage?.getItem(editor.getStorageKey());
 
         if (!raw) {
@@ -160,9 +198,8 @@ const editorCoreModule: MGECModule = {
         selectedEntity = scene.getActive().entities[0] ?? null;
         selectedFilePath = projectFiles[0]?.path ?? null;
         ui.panels.applyLayout(saved.layout ?? resolveWorkspaceLayout(projectFiles));
-        playing = false;
-        runtime.stopLoop();
         runtime.tick(0);
+        ui.setStatus("Stopped");
 
         if (!options?.silent) {
           editor.log("info", "Loaded project snapshot.");
@@ -172,8 +209,14 @@ const editorCoreModule: MGECModule = {
         return true;
       },
       play() {
+        if (playing) {
+          return;
+        }
+
+        playSnapshot = ecs.snapshotScene(scene.getActive());
         runtime.startLoop();
         playing = true;
+        startLiveRefresh();
         ui.setStatus("Playing");
         editor.log("info", "Runtime playing.");
         editor.refresh();
@@ -210,10 +253,19 @@ const editorCoreModule: MGECModule = {
         editor.refresh();
       },
       stop() {
+        if (!playing && !playSnapshot) {
+          ui.setStatus("Stopped");
+          editor.refresh();
+          return;
+        }
+
+        stopLiveRefresh();
         runtime.stopLoop();
         playing = false;
+        restorePlaySnapshot();
         ui.setStatus("Stopped");
-        editor.log("info", "Runtime stopped.");
+        runtime.tick(0);
+        editor.log("info", "Runtime stopped and state restored.");
         editor.refresh();
       },
       togglePlay() {
@@ -365,6 +417,10 @@ function serializeWorkspaceLayoutFile(layout: Record<PanelZone, string[]>): stri
 
 function isPanelZone(value: string): value is PanelZone {
   return value === "bottom" || value === "center" || value === "left" || value === "right";
+}
+
+function findEntityById(entities: readonly Entity[], id: string): Entity | null {
+  return entities.find((entity) => entity.id === id) ?? null;
 }
 
 function upsertProjectFile(files: EditorProjectFile[], nextFile: EditorProjectFile): EditorProjectFile[] {

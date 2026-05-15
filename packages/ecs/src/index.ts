@@ -72,7 +72,7 @@ const ecsModule: MGECModule = {
         scene.clear();
 
         for (const entityData of snapshot.entities) {
-          const entity = scene.createEntity(entityData.name);
+          const entity = scene.createEntity(entityData.name, entityData.id);
 
           for (const componentData of entityData.components) {
             ecs.addComponent(entity, componentData.type, componentData.data);

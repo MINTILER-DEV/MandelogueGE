@@ -6,10 +6,19 @@ export interface CanvasHost {
   clearColor?: string;
 }
 
+export interface CanvasViewTransform {
+  offsetX: number;
+  offsetY: number;
+  zoom: number;
+}
+
 export interface Canvas2DRendererService {
   beginFrame(): void;
   bounds(): { height: number; width: number };
   drawRect(x: number, y: number, width: number, height: number, color: string): void;
+  getView(): CanvasViewTransform;
+  resetView(): void;
+  setView(nextView: Partial<CanvasViewTransform>): void;
 }
 
 function resolveCanvasHost(): CanvasHost {
@@ -51,6 +60,12 @@ const rendererCanvas2dModule: MGECModule = {
       throw new Error("Canvas2D context could not be created.");
     }
 
+    const view: CanvasViewTransform = {
+      offsetX: 0,
+      offsetY: 0,
+      zoom: 1
+    };
+
     const renderer: Canvas2DRendererService = {
       beginFrame() {
         resizeCanvasToDisplaySize(host.canvas);
@@ -58,6 +73,7 @@ const rendererCanvas2dModule: MGECModule = {
         context2d.clearRect(0, 0, host.canvas.width, host.canvas.height);
         context2d.fillStyle = host.clearColor ?? "#101418";
         context2d.fillRect(0, 0, host.canvas.width, host.canvas.height);
+        context2d.setTransform(view.zoom, 0, 0, view.zoom, view.offsetX, view.offsetY);
       },
       bounds() {
         return {
@@ -68,6 +84,27 @@ const rendererCanvas2dModule: MGECModule = {
       drawRect(x, y, width, height, color) {
         context2d.fillStyle = color;
         context2d.fillRect(x, y, width, height);
+      },
+      getView() {
+        return { ...view };
+      },
+      resetView() {
+        view.offsetX = 0;
+        view.offsetY = 0;
+        view.zoom = 1;
+      },
+      setView(nextView) {
+        if (typeof nextView.offsetX === "number") {
+          view.offsetX = nextView.offsetX;
+        }
+
+        if (typeof nextView.offsetY === "number") {
+          view.offsetY = nextView.offsetY;
+        }
+
+        if (typeof nextView.zoom === "number") {
+          view.zoom = Math.max(0.1, Math.min(16, nextView.zoom));
+        }
       }
     };
 
