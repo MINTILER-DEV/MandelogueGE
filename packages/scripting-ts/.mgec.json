@@ -10,9 +10,10 @@
   },
   "requiresFeatures": ["runtime:loop", "service:ecs"],
   "providesFeatures": [
+    "service:scripting",
     "script-language:typescript",
     "asset-loader:ts-script",
-    "component:Script",
+    "component:ScriptComponent",
     "service:script-runtime"
   ]
 }

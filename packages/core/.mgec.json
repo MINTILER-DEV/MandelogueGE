@@ -4,5 +4,12 @@
   "version": "0.1.0",
   "entry": "./dist/index.js",
   "targets": ["runtime"],
-  "providesFeatures": ["service:core", "runtime:loop", "component:Transform"]
+  "providesFeatures": [
+    "service:core",
+    "runtime:loop",
+    "types:Component",
+    "types:Entity",
+    "types:RuntimeSystem",
+    "types:ComponentFactory"
+  ]
 }

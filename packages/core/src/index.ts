@@ -465,16 +465,6 @@ function nextId(prefix: string): string {
   return `${prefix}:${nextNumericId}`;
 }
 
-function transformFromData(data: Record<string, unknown> = {}): Transform {
-  return new Transform({
-    rotation: typeof data.rotation === "number" ? data.rotation : 0,
-    scaleX: typeof data.scaleX === "number" ? data.scaleX : 1,
-    scaleY: typeof data.scaleY === "number" ? data.scaleY : 1,
-    x: typeof data.x === "number" ? data.x : 0,
-    y: typeof data.y === "number" ? data.y : 0
-  });
-}
-
 const coreModule: MGECModule = {
   id: "@mge/core",
 
@@ -496,25 +486,7 @@ const coreModule: MGECModule = {
 
     ctx.services.provide("core", { version: ctx.component.version }, ctx.component.id);
     ctx.services.provide("runtime", runtime, ctx.component.id);
-    ctx.extensions.register("mge:component-factory", {
-      create: transformFromData,
-      matches(component) {
-        return component instanceof Transform;
-      },
-      serialize(component) {
-        const transform = component as Transform;
-
-        return {
-          rotation: transform.rotation,
-          scaleX: transform.scaleX,
-          scaleY: transform.scaleY,
-          x: transform.x,
-          y: transform.y
-        };
-      },
-      type: "Transform"
-    } satisfies ComponentFactory);
-    ctx.log.info("Registered the runtime loop and Transform component.");
+    ctx.log.info("Registered the runtime loop.");
   }
 };
 

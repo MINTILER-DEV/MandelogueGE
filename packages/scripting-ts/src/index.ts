@@ -255,6 +255,7 @@ const scriptingTsModule: MGECModule = {
     }
 
     ctx.services.provide("script-runtime", scriptRuntime, ctx.component.id);
+    ctx.services.provide("scripting", scriptRuntime, ctx.component.id);
     ctx.services.require<ECSService>("ecs").registerComponentFactory({
       create: createScriptComponent,
       matches(component) {

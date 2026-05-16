@@ -6,8 +6,10 @@
   "targets": ["editor"],
   "requires": {
     "@mge/mgengineui": "^0.1.0",
-    "@mge/editor-core": "^0.1.0"
+    "@mge/editor-core": "^0.1.0",
+    "@mge/project": "^0.1.0",
+    "@mge/storage-local": "^0.1.0"
   },
-  "requiresFeatures": ["service:mgengineui", "service:editor"],
+  "requiresFeatures": ["service:mgengineui", "service:editor", "service:project", "service:storage"],
   "providesFeatures": ["editor-panel:text-editor", "service:text-editor"]
 }

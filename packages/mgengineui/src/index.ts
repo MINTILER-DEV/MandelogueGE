@@ -145,6 +145,7 @@ const mgengineuiModule: MGECModule = {
     const ui = createMGEngineUI(root);
 
     ctx.services.provide("mgengineui", ui, ctx.component.id);
+    ctx.services.provide("engineui", ui, ctx.component.id);
     ctx.log.info("Registered MGEngineUI.");
   }
 };

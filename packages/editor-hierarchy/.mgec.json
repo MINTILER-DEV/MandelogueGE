@@ -6,9 +6,9 @@
   "targets": ["editor"],
   "requires": {
     "@mge/mgengineui": "^0.1.0",
-    "@mge/editor-core": "^0.1.0"
+    "@mge/editor-core": "^0.1.0",
+    "@mge/scene": "^0.1.0"
   },
-  "requiresFeatures": ["service:mgengineui", "service:editor"],
+  "requiresFeatures": ["service:mgengineui", "service:editor", "service:scene"],
   "providesFeatures": ["editor-panel:hierarchy"]
 }
-

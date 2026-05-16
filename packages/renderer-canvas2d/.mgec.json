@@ -8,6 +8,5 @@
     "@mge/core": "^0.1.0"
   },
   "requiresFeatures": ["runtime:loop"],
-  "providesFeatures": ["service:renderer"]
+  "providesFeatures": ["service:renderer", "render-backend:canvas2d"]
 }
-

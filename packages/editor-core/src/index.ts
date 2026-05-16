@@ -1,7 +1,7 @@
 import { Transform, type Component, type Entity, type Runtime } from "@mge/core";
 import type { ECSService, SerializedSceneData } from "@mge/ecs";
 import type { MGEKernelDiagnostic, MGECModule } from "@mge/kernel";
-import type { MGEngineUIService, PanelZone } from "@mge/mgengineui";
+import type { MGEngineUICommandDefinition, MGEngineUIService, PanelZone } from "@mge/mgengineui";
 import type { SceneService } from "@mge/scene";
 
 export interface EditorProjectFile {
@@ -40,6 +40,21 @@ export interface EditorSavedProject {
 export interface EditorStorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+}
+
+export interface EditorCommandsService {
+  closePalette(): void;
+  list(): MGEngineUICommandDefinition[];
+  openPalette(): void;
+  register(command: MGEngineUICommandDefinition): void;
+  run(commandId: string): boolean;
+}
+
+export interface EditorSelectionService {
+  getSelectedEntity(): Entity | null;
+  getSelectedFilePath(): string | null;
+  selectEntity(entity: Entity | null): void;
+  selectFile(path: string | null): void;
 }
 
 export interface EditorService {
@@ -398,8 +413,42 @@ const editorCoreModule: MGECModule = {
       }
     };
 
+    const selection: EditorSelectionService = {
+      getSelectedEntity() {
+        return editor.getSelectedEntity();
+      },
+      getSelectedFilePath() {
+        return editor.getSelectedFilePath();
+      },
+      selectEntity(entity) {
+        editor.selectEntity(entity);
+      },
+      selectFile(path) {
+        editor.selectFile(path);
+      }
+    };
+    const commands: EditorCommandsService = {
+      closePalette() {
+        ui.commands.closePalette();
+      },
+      list() {
+        return ui.commands.list();
+      },
+      openPalette() {
+        ui.commands.openPalette();
+      },
+      register(command) {
+        ui.commands.register(command);
+      },
+      run(commandId) {
+        return ui.commands.run(commandId);
+      }
+    };
+
     registerEditorChrome(ui, editor, ctx.project.name);
     ctx.services.provide("editor", editor, ctx.component.id);
+    ctx.services.provide("selection", selection, ctx.component.id);
+    ctx.services.provide("commands", commands, ctx.component.id);
     ctx.log.info("Registered the editor core service.");
   },
 

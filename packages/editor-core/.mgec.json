@@ -11,6 +11,5 @@
     "@mge/ecs": "^0.1.0"
   },
   "requiresFeatures": ["service:mgengineui", "service:scene", "service:ecs"],
-  "providesFeatures": ["service:editor", "service:workspace"]
+  "providesFeatures": ["service:editor", "service:selection", "service:commands", "service:workspace"]
 }
-

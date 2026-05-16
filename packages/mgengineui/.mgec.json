@@ -4,8 +4,12 @@
   "version": "0.1.0",
   "entry": "./dist/index.js",
   "targets": ["editor"],
+  "requires": {
+    "@mge/core": "^0.1.0"
+  },
   "providesFeatures": [
     "service:mgengineui",
+    "service:engineui",
     "ui:panel",
     "ui:dock",
     "ui:button",
@@ -14,7 +18,8 @@
     "ui:menu",
     "ui:modal",
     "ui:command-palette",
-    "ui:property-grid"
+    "ui:property-grid",
+    "ui:toast",
+    "ui:split-pane"
   ]
 }
-

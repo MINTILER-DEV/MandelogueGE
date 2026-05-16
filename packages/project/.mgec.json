@@ -5,8 +5,10 @@
   "entry": "./dist/index.js",
   "targets": ["editor"],
   "requires": {
+    "@mge/core": "^0.1.0",
+    "@mge/storage-local": "^0.1.0",
     "@mge/editor-core": "^0.1.0"
   },
-  "requiresFeatures": ["service:editor"],
-  "providesFeatures": ["service:project"]
+  "requiresFeatures": ["service:editor", "service:storage"],
+  "providesFeatures": ["service:project", "project:manifest", "project:lockfile"]
 }

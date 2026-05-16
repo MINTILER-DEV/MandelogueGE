@@ -4,5 +4,8 @@
   "version": "0.1.0",
   "entry": "./dist/index.js",
   "targets": ["editor"],
+  "requires": {
+    "@mge/core": "^0.1.0"
+  },
   "providesFeatures": ["service:storage"]
 }

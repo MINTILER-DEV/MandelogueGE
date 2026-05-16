@@ -8,6 +8,5 @@
     "@mge/core": "^0.1.0"
   },
   "requiresFeatures": ["runtime:loop"],
-  "providesFeatures": ["service:scene"]
+  "providesFeatures": ["service:scene", "scene:active", "scene:serializer", "component:Transform"]
 }
-
