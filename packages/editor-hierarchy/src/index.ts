@@ -17,13 +17,31 @@ const editorHierarchyModule: MGECModule = {
         const scene = ctx.services.require<SceneService>("scene").getActive();
         const stack = document.createElement("div");
         stack.className = "mge-stack";
-        stack.append(
+        const actions = document.createElement("div");
+        actions.className = "mge-inline-actions";
+        actions.append(
           uiService.button.create({
             label: "Add Entity",
             onClick: () => editor.addEntity(),
             variant: "accent"
+          }),
+          uiService.button.create({
+            label: "Delete Entity",
+            onClick: () => {
+              const selectedEntity = editor.getSelectedEntity();
+
+              if (!selectedEntity) {
+                return;
+              }
+
+              if (editor.deleteEntity(selectedEntity)) {
+                editor.log("info", `Deleted entity "${selectedEntity.name}".`, "@mge/editor-hierarchy");
+              }
+            },
+            variant: "ghost"
           })
         );
+        stack.append(actions);
         stack.append(
           uiService.tree.render(
             scene.entities.map((entity) => ({

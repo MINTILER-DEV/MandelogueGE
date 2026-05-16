@@ -1,11 +1,12 @@
 import type { Component, Entity } from "@mge/core";
-import type { EditorService } from "@mge/editor-core";
+import type { EditorProjectFile, EditorService } from "@mge/editor-core";
 import type { ECSService } from "@mge/ecs";
 import type { MGECModule } from "@mge/kernel";
 import type { MGEngineUIPropertyRowDefinition, MGEngineUIService } from "@mge/mgengineui";
 import type { ScriptComponent } from "@mge/scripting-ts";
 
 interface ScriptPropertySyncService {
+  createScript(path?: string): EditorProjectFile | null;
   getScriptEditableValues(path: string): Record<string, boolean | number | string>;
   updateScriptProperty(path: string, propertyName: string, value: boolean | number | string): boolean;
 }
@@ -42,10 +43,28 @@ const editorInspectorModule: MGECModule = {
         for (const component of entity.components) {
           const section = document.createElement("section");
           section.className = "mge-section mge-stack";
+          const header = document.createElement("div");
+          header.className = "mge-inline-actions";
 
           const title = document.createElement("strong");
           title.textContent = component.constructor.name;
-          section.append(title);
+          header.append(title);
+          header.append(
+            uiService.button.create({
+              label: "Delete Component",
+              onClick: () => {
+                if (editor.deleteComponent(entity, component)) {
+                  editor.log(
+                    "info",
+                    `Removed ${component.constructor.name} from "${entity.name}".`,
+                    "@mge/editor-inspector"
+                  );
+                }
+              },
+              variant: "ghost"
+            })
+          );
+          section.append(header);
           section.append(uiService.propertyGrid.render(buildRows(component, editor, textEditor)));
           stack.append(section);
         }
@@ -203,6 +222,15 @@ function renderEntityHeader(
           title: "Add Component"
         });
       }
+    }),
+    ui.button.create({
+      label: "Delete Entity",
+      onClick: () => {
+        if (editor.deleteEntity(entity)) {
+          editor.log("info", `Deleted entity "${entity.name}".`, "@mge/editor-inspector");
+        }
+      },
+      variant: "ghost"
     })
   );
   stack.append(actions);
@@ -311,12 +339,15 @@ function createDefaultScriptFile(
 } {
   const className = toScriptClassName(entity.name);
   const path = nextScriptPath(editor, className);
-  const source = createScriptTemplate(className);
+  const created = textEditor?.createScript(path);
 
-  editor.updateProjectFile(path, source, {
-    kind: "script",
-    select: true
-  });
+  if (!created) {
+    const source = createScriptTemplate(className);
+    editor.updateProjectFile(path, source, {
+      kind: "script",
+      select: true
+    });
+  }
 
   return {
     path,

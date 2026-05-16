@@ -111,6 +111,49 @@ export class ScriptComponent extends Component {
   }
 }
 
+export function normalizeScriptPath(scriptPath: string): string {
+  return scriptPath.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+export function syncScriptComponentProperties(
+  component: ScriptComponent,
+  properties: Record<string, unknown>
+): boolean {
+  const instanceRecord = component.instance as unknown as Record<string, unknown> | null;
+  const nextKeys = new Set(Object.keys(properties));
+  let changed = false;
+
+  for (const key of Object.keys(component.properties)) {
+    if (nextKeys.has(key)) {
+      continue;
+    }
+
+    delete component.properties[key];
+
+    if (instanceRecord && key in instanceRecord) {
+      delete instanceRecord[key];
+    }
+
+    changed = true;
+  }
+
+  for (const [key, value] of Object.entries(properties)) {
+    if (component.properties[key] === value) {
+      continue;
+    }
+
+    component.properties[key] = value;
+
+    if (instanceRecord) {
+      instanceRecord[key] = value;
+    }
+
+    changed = true;
+  }
+
+  return changed;
+}
+
 function createScriptComponent(data: Record<string, unknown> = {}): ScriptComponent {
   return new ScriptComponent({
     properties: isRecord(data.properties) ? data.properties : {},
@@ -140,36 +183,20 @@ const scriptingTsModule: MGECModule = {
           return 0;
         }
 
+        const normalizedPath = normalizeScriptPath(scriptPath);
+
         let updatedCount = 0;
 
         for (const entity of scene.entities) {
           for (const component of entity.components) {
-            if (!(component instanceof ScriptComponent) || component.script !== scriptPath) {
+            if (
+              !(component instanceof ScriptComponent) ||
+              normalizeScriptPath(component.script) !== normalizedPath
+            ) {
               continue;
             }
 
-            let changed = false;
-
-            for (const [key, value] of Object.entries(properties)) {
-              if (!(key in component.properties)) {
-                continue;
-              }
-
-              if (component.properties[key] === value) {
-                continue;
-              }
-
-              component.properties[key] = value;
-              changed = true;
-
-              const instanceRecord = component.instance as unknown as Record<string, unknown> | null;
-
-              if (instanceRecord && key in instanceRecord) {
-                instanceRecord[key] = value;
-              }
-            }
-
-            if (changed) {
+            if (syncScriptComponentProperties(component, properties)) {
               updatedCount += 1;
             }
           }
@@ -181,7 +208,7 @@ const scriptingTsModule: MGECModule = {
         return new ScriptComponent(definition);
       },
       registerScript(scriptPath, moduleLike) {
-        scripts.set(scriptPath, normalizeScriptConstructor(moduleLike));
+        scripts.set(normalizeScriptPath(scriptPath), normalizeScriptConstructor(moduleLike));
       },
       reloadScript(scriptPath) {
         const scene = runtime.getScene();
@@ -190,13 +217,18 @@ const scriptingTsModule: MGECModule = {
           return 0;
         }
 
+        const normalizedPath = normalizeScriptPath(scriptPath);
         const ScriptClass = scriptRuntime.resolveScript(scriptPath);
         const frameContext = createReloadFrameContext(runtime, scene);
         let reloadedCount = 0;
 
         for (const entity of scene.entities) {
           for (const component of entity.components) {
-            if (!(component instanceof ScriptComponent) || component.script !== scriptPath || !component.started) {
+            if (
+              !(component instanceof ScriptComponent) ||
+              normalizeScriptPath(component.script) !== normalizedPath ||
+              !component.started
+            ) {
               continue;
             }
 
@@ -208,7 +240,7 @@ const scriptingTsModule: MGECModule = {
         return reloadedCount;
       },
       resolveScript(scriptPath) {
-        const ScriptClass = scripts.get(scriptPath);
+        const ScriptClass = scripts.get(normalizeScriptPath(scriptPath));
 
         if (!ScriptClass) {
           throw new Error(`No TypeScript script has been registered for path "${scriptPath}".`);

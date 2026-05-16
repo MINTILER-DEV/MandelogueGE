@@ -320,6 +320,7 @@ function createTextEditorService(dependencies: {
 
     if (event.type === "files-changed") {
       syncModelsFromProject();
+      registerAllProjectScripts();
       renderPanel();
       return;
     }

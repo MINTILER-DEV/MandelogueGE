@@ -1,4 +1,4 @@
-import { Transform, type Entity, type Runtime } from "@mge/core";
+import { Transform, type Component, type Entity, type Runtime } from "@mge/core";
 import type { ECSService, SerializedSceneData } from "@mge/ecs";
 import type { MGEKernelDiagnostic, MGECModule } from "@mge/kernel";
 import type { MGEngineUIService, PanelZone } from "@mge/mgengineui";
@@ -45,6 +45,8 @@ export interface EditorStorageLike {
 export interface EditorService {
   addEntity(name?: string): Entity;
   clearLogs(): void;
+  deleteComponent(entity: Entity, component: Component): boolean;
+  deleteEntity(entity: Entity): boolean;
   deleteProjectFile(path: string): boolean;
   getProjectFile(path: string): EditorProjectFile | null;
   getLogs(): EditorLogEntry[];
@@ -153,6 +155,34 @@ const editorCoreModule: MGECModule = {
       clearLogs() {
         logs = [];
         editor.refresh();
+      },
+      deleteComponent(entity, component) {
+        const targetEntity = scene.getActive().entities.find((candidate) => candidate === entity);
+
+        if (!targetEntity || !targetEntity.components.includes(component)) {
+          return false;
+        }
+
+        targetEntity.removeComponent(component);
+        editor.refresh();
+        return true;
+      },
+      deleteEntity(entity) {
+        const activeScene = scene.getActive();
+
+        if (!activeScene.entities.includes(entity)) {
+          return false;
+        }
+
+        activeScene.removeEntity(entity);
+
+        if (selectedEntity === entity) {
+          selectedEntity = activeScene.entities[0] ?? null;
+          emit({ type: "entity-selection-changed" });
+        }
+
+        editor.refresh();
+        return true;
       },
       deleteProjectFile(path) {
         const index = projectFiles.findIndex((file) => file.path === path);

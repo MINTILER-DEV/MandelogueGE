@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Entity, Runtime, Script, Transform, type RuntimeFrameDriver } from "../../core/src/index.js";
 import { ServiceRegistry } from "../../kernel/src/index.js";
 
-import { ScriptComponent, type ScriptRuntimeService } from "./index.js";
+import { normalizeScriptPath, ScriptComponent, syncScriptComponentProperties, type ScriptRuntimeService } from "./index.js";
 
 class TestPlayerController extends Script {
   speed = 120;
@@ -86,5 +86,31 @@ describe("@mge/scripting-ts", () => {
     runtime.tick(1016.6667);
 
     expect(entity.getComponent(Transform)?.x).toBeCloseTo(18, 4);
+  });
+
+  it("normalizes script paths before lookup", () => {
+    expect(normalizeScriptPath("./scripts/PlayerController.ts")).toBe("scripts/PlayerController.ts");
+    expect(normalizeScriptPath(".\\scripts\\PlayerController.ts")).toBe("scripts/PlayerController.ts");
+  });
+
+  it("syncs script component properties by adding, updating, and removing fields", () => {
+    const component = new ScriptComponent({
+      properties: {
+        keep: 1,
+        removeMe: true
+      },
+      script: "./scripts/Test.ts"
+    });
+
+    const changed = syncScriptComponentProperties(component, {
+      added: "value",
+      keep: 2
+    });
+
+    expect(changed).toBe(true);
+    expect(component.properties).toEqual({
+      added: "value",
+      keep: 2
+    });
   });
 });
