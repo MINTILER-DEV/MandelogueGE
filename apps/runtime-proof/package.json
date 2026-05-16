@@ -15,6 +15,7 @@
     "@mge/input": "workspace:*",
     "@mge/kernel": "workspace:*",
     "@mge/renderer-canvas2d": "workspace:*",
+    "@mge/runtime": "workspace:*",
     "@mge/scene": "workspace:*",
     "@mge/scripting-ts": "workspace:*",
     "@mge/time": "workspace:*"

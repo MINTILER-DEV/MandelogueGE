@@ -98,6 +98,9 @@ importers:
       '@mge/renderer-canvas2d':
         specifier: workspace:*
         version: link:../../packages/renderer-canvas2d
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@mge/scene':
         specifier: workspace:*
         version: link:../../packages/scene
@@ -134,6 +137,9 @@ importers:
       '@mge/renderer-canvas2d':
         specifier: workspace:*
         version: link:../../packages/renderer-canvas2d
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@mge/scene':
         specifier: workspace:*
         version: link:../../packages/scene
@@ -158,6 +164,12 @@ importers:
       '@mge/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@mge/scene':
+        specifier: workspace:*
+        version: link:../scene
 
   packages/demo-square:
     dependencies:
@@ -176,6 +188,9 @@ importers:
       '@mge/renderer-canvas2d':
         specifier: workspace:*
         version: link:../renderer-canvas2d
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       '@mge/scene':
         specifier: workspace:*
         version: link:../scene
@@ -194,6 +209,9 @@ importers:
       '@mge/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       '@mge/scene':
         specifier: workspace:*
         version: link:../scene
@@ -227,9 +245,6 @@ importers:
 
   packages/editor-core:
     dependencies:
-      '@mge/core':
-        specifier: workspace:*
-        version: link:../core
       '@mge/ecs':
         specifier: workspace:*
         version: link:../ecs
@@ -239,6 +254,9 @@ importers:
       '@mge/mgengineui':
         specifier: workspace:*
         version: link:../mgengineui
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       '@mge/scene':
         specifier: workspace:*
         version: link:../scene
@@ -260,6 +278,9 @@ importers:
 
   packages/editor-inspector:
     dependencies:
+      '@mge/ecs':
+        specifier: workspace:*
+        version: link:../ecs
       '@mge/editor-core':
         specifier: workspace:*
         version: link:../editor-core
@@ -269,6 +290,9 @@ importers:
       '@mge/mgengineui':
         specifier: workspace:*
         version: link:../mgengineui
+      '@mge/scene':
+        specifier: workspace:*
+        version: link:../scene
       '@mge/scripting-ts':
         specifier: workspace:*
         version: link:../scripting-ts
@@ -356,21 +380,27 @@ importers:
 
   packages/renderer-canvas2d:
     dependencies:
-      '@mge/core':
+      '@mge/kernel':
         specifier: workspace:*
-        version: link:../core
+        version: link:../kernel
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+
+  packages/runtime:
+    dependencies:
       '@mge/kernel':
         specifier: workspace:*
         version: link:../kernel
 
   packages/scene:
     dependencies:
-      '@mge/core':
-        specifier: workspace:*
-        version: link:../core
       '@mge/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../runtime
 
   packages/scripting-ts:
     dependencies:
@@ -383,6 +413,12 @@ importers:
       '@mge/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@mge/scene':
+        specifier: workspace:*
+        version: link:../scene
 
   packages/storage-local:
     dependencies:
@@ -401,12 +437,12 @@ importers:
 
   packages/time:
     dependencies:
-      '@mge/core':
-        specifier: workspace:*
-        version: link:../core
       '@mge/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@mge/runtime':
+        specifier: workspace:*
+        version: link:../runtime
 
 packages:
 

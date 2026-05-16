@@ -27,6 +27,7 @@
     "@mge/project": "workspace:*",
     "monaco-editor": "^0.52.2",
     "@mge/renderer-canvas2d": "workspace:*",
+    "@mge/runtime": "workspace:*",
     "@mge/scene": "workspace:*",
     "@mge/scripting-ts": "workspace:*",
     "@mge/storage-local": "workspace:*",

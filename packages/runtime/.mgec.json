@@ -1,0 +1,11 @@
+{
+  "id": "@mge/runtime",
+  "name": "MGE Runtime",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["runtime", "editor"],
+  "requires": {
+    "@mge/core": "^0.1.0"
+  },
+  "providesFeatures": ["service:runtime", "runtime:loop"]
+}

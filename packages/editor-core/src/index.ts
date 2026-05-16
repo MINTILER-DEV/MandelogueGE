@@ -1,4 +1,5 @@
-import { Transform, type Component, type Entity, type Runtime } from "@mge/core";
+import type { Runtime } from "@mge/runtime";
+import { Transform, type Component, type Entity } from "@mge/scene";
 import type { ECSService, SerializedSceneData } from "@mge/ecs";
 import type { MGEKernelDiagnostic, MGECModule } from "@mge/kernel";
 import type { MGEngineUICommandDefinition, MGEngineUIService, PanelZone } from "@mge/mgengineui";

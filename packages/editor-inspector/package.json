@@ -17,9 +17,10 @@
   },
   "dependencies": {
     "@mge/editor-core": "workspace:*",
+    "@mge/ecs": "workspace:*",
     "@mge/kernel": "workspace:*",
     "@mge/mgengineui": "workspace:*",
+    "@mge/scene": "workspace:*",
     "@mge/scripting-ts": "workspace:*"
   }
 }
-

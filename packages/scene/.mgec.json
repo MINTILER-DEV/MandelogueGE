@@ -5,8 +5,8 @@
   "entry": "./dist/index.js",
   "targets": ["runtime"],
   "requires": {
-    "@mge/core": "^0.1.0"
+    "@mge/runtime": "^0.1.0"
   },
-  "requiresFeatures": ["runtime:loop"],
+  "requiresFeatures": ["service:runtime"],
   "providesFeatures": ["service:scene", "scene:active", "scene:serializer", "component:Transform"]
 }

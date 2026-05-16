@@ -16,6 +16,7 @@ import inputManifest from "../../../packages/input/.mgec.json" with { type: "jso
 import mgengineuiManifest from "../../../packages/mgengineui/.mgec.json" with { type: "json" };
 import projectSystemManifest from "../../../packages/project/.mgec.json" with { type: "json" };
 import rendererManifest from "../../../packages/renderer-canvas2d/.mgec.json" with { type: "json" };
+import runtimeManifest from "../../../packages/runtime/.mgec.json" with { type: "json" };
 import sceneManifest from "../../../packages/scene/.mgec.json" with { type: "json" };
 import scriptingManifest from "../../../packages/scripting-ts/.mgec.json" with { type: "json" };
 import storageLocalManifest from "../../../packages/storage-local/.mgec.json" with { type: "json" };
@@ -23,8 +24,8 @@ import timeManifest from "../../../packages/time/.mgec.json" with { type: "json"
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
-import { default as coreModule, createBrowserFrameDriver, type RuntimeFrameDriver } from "@mge/core";
 import assetsModule from "@mge/assets";
+import { default as coreModule } from "@mge/core";
 import demoSquareModule from "@mge/demo-square";
 import editorAssetsModule from "@mge/editor-assets";
 import editorConsoleModule from "@mge/editor-console";
@@ -40,6 +41,7 @@ import { MGEKernel, type MGEComponentSource, type MGECManifest, type MGEKernelDi
 import mgengineuiModule from "@mge/mgengineui";
 import projectSystemModule from "@mge/project";
 import rendererModule, { type CanvasHost } from "@mge/renderer-canvas2d";
+import runtimeModule, { createBrowserFrameDriver, type RuntimeFrameDriver } from "@mge/runtime";
 import sceneModule from "@mge/scene";
 import scriptingModule from "@mge/scripting-ts";
 import storageLocalModule from "@mge/storage-local";
@@ -88,6 +90,7 @@ function manifest(value: unknown): MGECManifest {
 const diagnostics: MGEKernelDiagnostic[] = [];
 const workspaceComponents: MGEComponentSource[] = [
   { manifest: manifest(coreManifest), module: coreModule },
+  { manifest: manifest(runtimeManifest), module: runtimeModule },
   { manifest: manifest(projectSystemManifest), module: projectSystemModule },
   { manifest: manifest(storageLocalManifest), module: storageLocalModule },
   { manifest: manifest(assetsManifest), module: assetsModule },

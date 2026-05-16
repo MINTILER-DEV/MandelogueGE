@@ -3,10 +3,9 @@
   "name": "MGE Core",
   "version": "0.1.0",
   "entry": "./dist/index.js",
-  "targets": ["runtime"],
+  "targets": ["runtime", "editor"],
   "providesFeatures": [
     "service:core",
-    "runtime:loop",
     "types:Component",
     "types:Entity",
     "types:RuntimeSystem",

@@ -1,5 +1,5 @@
 import type { MGECModule } from "@mge/kernel";
-import { getRuntime } from "@mge/core";
+import { getRuntime } from "@mge/runtime";
 
 export interface CanvasHost {
   canvas: HTMLCanvasElement;

@@ -1,7 +1,9 @@
 import type { MGECModule } from "@mge/kernel";
-import { Component, Transform, type ComponentFactory, type RuntimeFrameContext } from "@mge/core";
+import type { ComponentFactory } from "@mge/core";
 import type { ECSService } from "@mge/ecs";
 import type { Canvas2DRendererService } from "@mge/renderer-canvas2d";
+import type { RuntimeFrameContext } from "@mge/runtime";
+import { Component, Transform } from "@mge/scene";
 import type { SceneService } from "@mge/scene";
 import type { ScriptRuntimeService } from "@mge/scripting-ts";
 

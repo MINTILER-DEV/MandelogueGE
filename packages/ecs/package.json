@@ -18,7 +18,7 @@
   "dependencies": {
     "@mge/core": "workspace:*",
     "@mge/kernel": "workspace:*",
+    "@mge/runtime": "workspace:*",
     "@mge/scene": "workspace:*"
   }
 }
-

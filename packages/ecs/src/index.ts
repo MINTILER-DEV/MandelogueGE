@@ -1,5 +1,7 @@
 import type { MGECModule } from "@mge/kernel";
-import type { Component, ComponentFactory, Entity, RuntimeSystem, Scene } from "@mge/core";
+import type { ComponentFactory } from "@mge/core";
+import type { RuntimeSystem } from "@mge/runtime";
+import type { Component, Entity, Scene } from "@mge/scene";
 
 export interface SerializedComponentData {
   data: Record<string, unknown>;

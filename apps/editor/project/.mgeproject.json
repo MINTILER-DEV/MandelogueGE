@@ -5,6 +5,7 @@
   "mainScene": "Editor Preview Scene",
   "components": {
     "@mge/core": "^0.1.0",
+    "@mge/runtime": "^0.1.0",
     "@mge/mgengineui": "^0.1.0",
     "@mge/storage-local": "^0.1.0",
     "@mge/project": "^0.1.0",

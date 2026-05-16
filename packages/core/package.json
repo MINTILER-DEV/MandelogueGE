@@ -16,6 +16,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "dependencies": {
-    "@mge/kernel": "workspace:*"
+    "@mge/kernel": "workspace:*",
+    "@mge/runtime": "workspace:*",
+    "@mge/scene": "workspace:*"
   }
 }

@@ -1,6 +1,8 @@
-import { Component, type ComponentFactory, type Runtime, type RuntimeFrameContext, type Script } from "@mge/core";
+import type { ComponentFactory, Script } from "@mge/core";
 import type { ECSService } from "@mge/ecs";
 import type { MGECModule } from "@mge/kernel";
+import type { Runtime, RuntimeFrameContext } from "@mge/runtime";
+import { Component } from "@mge/scene";
 
 export type ScriptConstructor = new () => Script;
 

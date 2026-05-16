@@ -1,4 +1,4 @@
-import type { Component, Entity } from "@mge/core";
+import type { Component, Entity } from "@mge/scene";
 import type { EditorProjectFile, EditorService } from "@mge/editor-core";
 import type { ECSService } from "@mge/ecs";
 import type { MGECModule } from "@mge/kernel";

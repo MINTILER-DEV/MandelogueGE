@@ -5,15 +5,17 @@ import ecsManifest from "../../../packages/ecs/.mgec.json" with { type: "json" }
 import inputManifest from "../../../packages/input/.mgec.json" with { type: "json" };
 import kernelManifest from "../../../packages/kernel/package.json" with { type: "json" };
 import rendererManifest from "../../../packages/renderer-canvas2d/.mgec.json" with { type: "json" };
+import runtimeManifest from "../../../packages/runtime/.mgec.json" with { type: "json" };
 import sceneManifest from "../../../packages/scene/.mgec.json" with { type: "json" };
 import scriptingManifest from "../../../packages/scripting-ts/.mgec.json" with { type: "json" };
 import timeManifest from "../../../packages/time/.mgec.json" with { type: "json" };
-import { default as coreModule, createBrowserFrameDriver, type RuntimeFrameDriver } from "@mge/core";
+import { default as coreModule } from "@mge/core";
 import demoSquareModule from "@mge/demo-square";
 import ecsModule from "@mge/ecs";
 import inputModule from "@mge/input";
 import { MGEKernel, type MGEComponentSource, type MGECManifest, type MGEProjectManifest } from "@mge/kernel";
 import rendererModule, { type CanvasHost } from "@mge/renderer-canvas2d";
+import runtimeModule, { createBrowserFrameDriver, type RuntimeFrameDriver } from "@mge/runtime";
 import sceneModule from "@mge/scene";
 import scriptingModule from "@mge/scripting-ts";
 import "./style.css";
@@ -34,6 +36,7 @@ function manifest(value: unknown): MGECManifest {
 
 const workspaceComponents: MGEComponentSource[] = [
   { manifest: manifest(coreManifest), module: coreModule },
+  { manifest: manifest(runtimeManifest), module: runtimeModule },
   { manifest: manifest(timeManifest), module: timeModule },
   { manifest: manifest(sceneManifest), module: sceneModule },
   { manifest: manifest(ecsManifest), module: ecsModule },

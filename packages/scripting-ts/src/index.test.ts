@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { Entity, Runtime, Script, Transform, type RuntimeFrameDriver } from "../../core/src/index.js";
 import { ServiceRegistry } from "../../kernel/src/index.js";
+import { Script } from "@mge/core";
+import { Runtime, type RuntimeFrameDriver } from "@mge/runtime";
+import { Entity, Scene, Transform } from "@mge/scene";
 
 import { normalizeScriptPath, ScriptComponent, syncScriptComponentProperties, type ScriptRuntimeService } from "./index.js";
 
@@ -32,7 +34,7 @@ describe("@mge/scripting-ts", () => {
     const services = new ServiceRegistry();
     const down = new Set<string>(["KeyD"]);
     const runtime = new Runtime(services, frameDriver());
-    const scene = runtime.createScene("Scripts");
+    const scene = new Scene("Scripts");
     const entity = new Entity("Player");
     const scriptRuntime: ScriptRuntimeService = {
       applyScriptProperties() {

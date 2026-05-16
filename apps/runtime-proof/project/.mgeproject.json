@@ -5,6 +5,7 @@
   "mainScene": "Runtime Proof Scene",
   "components": {
     "@mge/core": "^0.1.0",
+    "@mge/runtime": "^0.1.0",
     "@mge/time": "^0.1.0",
     "@mge/scene": "^0.1.0",
     "@mge/ecs": "^0.1.0",
