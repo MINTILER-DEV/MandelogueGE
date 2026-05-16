@@ -1,0 +1,12 @@
+{
+  "id": "@mge/assets",
+  "name": "MGE Assets",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["editor"],
+  "requires": {
+    "@mge/editor-core": "^0.1.0"
+  },
+  "requiresFeatures": ["service:editor"],
+  "providesFeatures": ["service:assets"]
+}

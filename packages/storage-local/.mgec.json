@@ -1,0 +1,8 @@
+{
+  "id": "@mge/storage-local",
+  "name": "MGE Local Storage",
+  "version": "0.1.0",
+  "entry": "./dist/index.js",
+  "targets": ["editor"],
+  "providesFeatures": ["service:storage"]
+}

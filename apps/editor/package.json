@@ -12,6 +12,7 @@
     "@mge/core": "workspace:*",
     "@mge/demo-square": "workspace:*",
     "@mge/ecs": "workspace:*",
+    "@mge/assets": "workspace:*",
     "@mge/editor-assets": "workspace:*",
     "@mge/editor-console": "workspace:*",
     "@mge/editor-core": "workspace:*",
@@ -23,10 +24,12 @@
     "@mge/input": "workspace:*",
     "@mge/kernel": "workspace:*",
     "@mge/mgengineui": "workspace:*",
+    "@mge/project": "workspace:*",
     "monaco-editor": "^0.52.2",
     "@mge/renderer-canvas2d": "workspace:*",
     "@mge/scene": "workspace:*",
     "@mge/scripting-ts": "workspace:*",
+    "@mge/storage-local": "workspace:*",
     "@mge/time": "workspace:*"
   }
 }

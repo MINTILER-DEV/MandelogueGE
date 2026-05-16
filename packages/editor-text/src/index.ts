@@ -1,4 +1,5 @@
 import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
+import "monaco-editor/min/vs/editor/editor.main.css";
 import "monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution";
 import "monaco-editor/esm/vs/language/json/monaco.contribution";
 import "monaco-editor/esm/vs/language/typescript/monaco.contribution";
@@ -15,6 +16,7 @@ export interface TextEditorService {
   find(): void;
   focus(): void;
   getActivePath(): string | null;
+  getScriptEditableValues(path: string): Record<string, ScriptEditableValue>;
   initialize(): void;
   openFile(path: string, options?: { activatePanel?: boolean }): void;
   replace(): void;
@@ -159,6 +161,16 @@ function createTextEditorService(dependencies: {
     },
     getActivePath() {
       return activePath;
+    },
+    getScriptEditableValues(path) {
+      const file = editor.getProjectFile(path);
+
+      if (!file || !isScriptFile(path)) {
+        return {};
+      }
+
+      const source = models.get(path)?.getValue() ?? file.content;
+      return readScriptEditableValues(source);
     },
     initialize() {
       if (initialised) {
@@ -382,8 +394,16 @@ function createTextEditorService(dependencies: {
         insertSpaces: true,
         minimap: { enabled: false },
         model: null,
+        parameterHints: { enabled: true },
+        quickSuggestions: {
+          comments: false,
+          other: true,
+          strings: true
+        },
         renderWhitespace: "selection",
         scrollBeyondLastLine: false,
+        snippetSuggestions: "inline",
+        suggestOnTriggerCharacters: true,
         tabSize: 2,
         theme: "mge-monaco",
         wordWrap: "off"

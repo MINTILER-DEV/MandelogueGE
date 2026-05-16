@@ -6,7 +6,7 @@ import type { SceneService } from "@mge/scene";
 
 export interface EditorProjectFile {
   content: string;
-  kind: "config" | "script" | "workspace" | "other";
+  kind: "asset" | "assetmeta" | "config" | "lockfile" | "script" | "workspace" | "other";
   path: string;
 }
 
@@ -87,7 +87,9 @@ const editorCoreModule: MGECModule = {
     const scene = ctx.services.require<SceneService>("scene");
     const storage = ctx.services.has("host:project-storage")
       ? ctx.services.require<EditorStorageLike>("host:project-storage")
-      : resolveStorage();
+      : ctx.services.has("storage")
+        ? ctx.services.require<EditorStorageLike>("storage")
+        : resolveStorage();
     const ui = ctx.services.require<MGEngineUIService>("mgengineui");
     let logs: EditorLogEntry[] = [];
     let projectFiles = ctx.services.has("host:project-files")

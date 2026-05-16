@@ -3,6 +3,7 @@ import workspaceManifest from "../project/.mgeworkspace.json" with { type: "json
 import coreManifest from "../../../packages/core/.mgec.json" with { type: "json" };
 import demoSquareManifest from "../../../packages/demo-square/.mgec.json" with { type: "json" };
 import ecsManifest from "../../../packages/ecs/.mgec.json" with { type: "json" };
+import assetsManifest from "../../../packages/assets/.mgec.json" with { type: "json" };
 import editorAssetsManifest from "../../../packages/editor-assets/.mgec.json" with { type: "json" };
 import editorConsoleManifest from "../../../packages/editor-console/.mgec.json" with { type: "json" };
 import editorCoreManifest from "../../../packages/editor-core/.mgec.json" with { type: "json" };
@@ -13,14 +14,17 @@ import editorTextManifest from "../../../packages/editor-text/.mgec.json" with {
 import editorViewportManifest from "../../../packages/editor-viewport/.mgec.json" with { type: "json" };
 import inputManifest from "../../../packages/input/.mgec.json" with { type: "json" };
 import mgengineuiManifest from "../../../packages/mgengineui/.mgec.json" with { type: "json" };
+import projectSystemManifest from "../../../packages/project/.mgec.json" with { type: "json" };
 import rendererManifest from "../../../packages/renderer-canvas2d/.mgec.json" with { type: "json" };
 import sceneManifest from "../../../packages/scene/.mgec.json" with { type: "json" };
 import scriptingManifest from "../../../packages/scripting-ts/.mgec.json" with { type: "json" };
+import storageLocalManifest from "../../../packages/storage-local/.mgec.json" with { type: "json" };
 import timeManifest from "../../../packages/time/.mgec.json" with { type: "json" };
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
 import { default as coreModule, createBrowserFrameDriver, type RuntimeFrameDriver } from "@mge/core";
+import assetsModule from "@mge/assets";
 import demoSquareModule from "@mge/demo-square";
 import editorAssetsModule from "@mge/editor-assets";
 import editorConsoleModule from "@mge/editor-console";
@@ -34,9 +38,11 @@ import ecsModule from "@mge/ecs";
 import inputModule from "@mge/input";
 import { MGEKernel, type MGEComponentSource, type MGECManifest, type MGEKernelDiagnostic, type MGEProjectManifest } from "@mge/kernel";
 import mgengineuiModule from "@mge/mgengineui";
+import projectSystemModule from "@mge/project";
 import rendererModule, { type CanvasHost } from "@mge/renderer-canvas2d";
 import sceneModule from "@mge/scene";
 import scriptingModule from "@mge/scripting-ts";
+import storageLocalModule from "@mge/storage-local";
 import timeModule from "@mge/time";
 import PlayerController from "../project/scripts/PlayerController.js";
 import playerControllerSource from "../project/scripts/PlayerController.ts?raw";
@@ -82,6 +88,9 @@ function manifest(value: unknown): MGECManifest {
 const diagnostics: MGEKernelDiagnostic[] = [];
 const workspaceComponents: MGEComponentSource[] = [
   { manifest: manifest(coreManifest), module: coreModule },
+  { manifest: manifest(projectSystemManifest), module: projectSystemModule },
+  { manifest: manifest(storageLocalManifest), module: storageLocalModule },
+  { manifest: manifest(assetsManifest), module: assetsModule },
   { manifest: manifest(timeManifest), module: timeModule },
   { manifest: manifest(sceneManifest), module: sceneModule },
   { manifest: manifest(ecsManifest), module: ecsModule },
@@ -112,6 +121,11 @@ const projectFiles: EditorProjectFile[] = [
     path: ".mgeworkspace.json"
   },
   {
+    content: `${JSON.stringify({ packages: {} }, null, 2)}\n`,
+    kind: "lockfile",
+    path: ".mgelock.json"
+  },
+  {
     content: playerControllerSource,
     kind: "script",
     path: "./scripts/PlayerController.ts"
@@ -133,7 +147,6 @@ async function main(): Promise<void> {
       "host:frame-driver": createBrowserFrameDriver() satisfies RuntimeFrameDriver,
       "host:keyboard-target": window,
       "host:project-files": projectFiles,
-      "host:project-storage": window.localStorage,
       "host:root": editorRoot,
       "host:script-sources": {
         "./scripts/PlayerController.ts": PlayerController

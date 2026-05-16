@@ -6,6 +6,7 @@ import type { MGEngineUIPropertyRowDefinition, MGEngineUIService } from "@mge/mg
 import type { ScriptComponent } from "@mge/scripting-ts";
 
 interface ScriptPropertySyncService {
+  getScriptEditableValues(path: string): Record<string, boolean | number | string>;
   updateScriptProperty(path: string, propertyName: string, value: boolean | number | string): boolean;
 }
 
@@ -15,15 +16,15 @@ const editorInspectorModule: MGECModule = {
   setup(ctx) {
     const ecs = ctx.services.require<ECSService>("ecs");
     const ui = ctx.services.require<MGEngineUIService>("mgengineui");
-    const textEditor = ctx.services.has("text-editor")
-      ? ctx.services.require<ScriptPropertySyncService>("text-editor")
-      : null;
 
     ui.panels.register({
       id: "inspector",
       order: 0,
       render(uiService) {
         const editor = ctx.services.require<EditorService>("editor");
+        const textEditor = ctx.services.has("text-editor")
+          ? ctx.services.require<ScriptPropertySyncService>("text-editor")
+          : null;
         const entity = editor.getSelectedEntity();
         const stack = document.createElement("div");
         stack.className = "mge-stack";
@@ -36,7 +37,7 @@ const editorInspectorModule: MGECModule = {
           return stack;
         }
 
-        stack.append(renderEntityHeader(entity, editor, ecs, uiService));
+        stack.append(renderEntityHeader(entity, editor, ecs, uiService, textEditor));
 
         for (const component of entity.components) {
           const section = document.createElement("section");
@@ -134,7 +135,8 @@ function renderEntityHeader(
   entity: Entity,
   editor: EditorService,
   ecs: ECSService,
-  ui: MGEngineUIService
+  ui: MGEngineUIService,
+  textEditor: ScriptPropertySyncService | null
 ): HTMLElement {
   const stack = document.createElement("div");
   stack.className = "mge-section mge-stack";
@@ -182,10 +184,14 @@ function renderEntityHeader(
                 modalUi.button.create({
                   label: componentType,
                   onClick: () => {
-                    ecs.addComponent(entity, componentType);
-                    editor.log("info", `Added ${componentType} to "${entity.name}".`, "@mge/editor-inspector");
-                    modalUi.modal.close();
-                    editor.refresh();
+                    addComponentForType({
+                      componentType,
+                      ecs,
+                      editor,
+                      entity,
+                      modalUi,
+                      textEditor
+                    });
                   },
                   variant: "ghost"
                 })
@@ -201,6 +207,167 @@ function renderEntityHeader(
   );
   stack.append(actions);
   return stack;
+}
+
+function addComponentForType(options: {
+  componentType: string;
+  ecs: ECSService;
+  editor: EditorService;
+  entity: Entity;
+  modalUi: MGEngineUIService;
+  textEditor: ScriptPropertySyncService | null;
+}): void {
+  const { componentType, ecs, editor, entity, modalUi, textEditor } = options;
+
+  if (componentType !== "Script") {
+    modalUi.modal.close();
+    ecs.addComponent(entity, componentType);
+    editor.log("info", `Added ${componentType} to "${entity.name}".`, "@mge/editor-inspector");
+    editor.refresh();
+    return;
+  }
+
+  const scriptFiles = listScriptFiles(editor);
+
+  if (scriptFiles.length === 0) {
+    const created = createDefaultScriptFile(editor, entity, textEditor);
+    modalUi.modal.close();
+    ecs.addComponent(entity, "Script", {
+      properties: created.properties,
+      script: created.path
+    });
+    editor.log("info", `Added Script to "${entity.name}" using "${created.path}".`, "@mge/editor-inspector");
+    editor.refresh();
+    return;
+  }
+
+  modalUi.modal.open({
+    render(nextModalUi) {
+      const modalStack = document.createElement("div");
+      modalStack.className = "mge-stack";
+
+      const caption = document.createElement("p");
+      caption.className = "mge-empty";
+      caption.textContent = `Choose a script for "${entity.name}".`;
+      modalStack.append(caption);
+
+      for (const scriptPath of scriptFiles) {
+        modalStack.append(
+          nextModalUi.button.create({
+            label: scriptPath,
+            onClick: () => {
+              const properties = textEditor?.getScriptEditableValues(scriptPath) ?? {};
+              nextModalUi.modal.close();
+              ecs.addComponent(entity, "Script", {
+                properties,
+                script: scriptPath
+              });
+              editor.log("info", `Added Script to "${entity.name}" using "${scriptPath}".`, "@mge/editor-inspector");
+              editor.refresh();
+            },
+            variant: "ghost"
+          })
+        );
+      }
+
+      modalStack.append(
+        nextModalUi.button.create({
+          label: "New Script File",
+          onClick: () => {
+            const created = createDefaultScriptFile(editor, entity, textEditor);
+            nextModalUi.modal.close();
+            ecs.addComponent(entity, "Script", {
+              properties: created.properties,
+              script: created.path
+            });
+            editor.log("info", `Added Script to "${entity.name}" using "${created.path}".`, "@mge/editor-inspector");
+            editor.refresh();
+          },
+          variant: "accent"
+        })
+      );
+
+      return modalStack;
+    },
+    title: "Choose Script"
+  });
+}
+
+function listScriptFiles(editor: EditorService): string[] {
+  return editor
+    .getProjectFiles()
+    .filter((file) => file.kind === "script" || isScriptPath(file.path))
+    .map((file) => file.path)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function createDefaultScriptFile(
+  editor: EditorService,
+  entity: Entity,
+  textEditor: ScriptPropertySyncService | null
+): {
+  path: string;
+  properties: Record<string, boolean | number | string>;
+} {
+  const className = toScriptClassName(entity.name);
+  const path = nextScriptPath(editor, className);
+  const source = createScriptTemplate(className);
+
+  editor.updateProjectFile(path, source, {
+    kind: "script",
+    select: true
+  });
+
+  return {
+    path,
+    properties: textEditor?.getScriptEditableValues(path) ?? {}
+  };
+}
+
+function nextScriptPath(editor: EditorService, className: string): string {
+  const baseName = className || "NewScript";
+  let index = 1;
+  let candidate = `./scripts/${baseName}.ts`;
+
+  while (editor.getProjectFile(candidate)) {
+    index += 1;
+    candidate = `./scripts/${baseName}${index}.ts`;
+  }
+
+  return candidate;
+}
+
+function createScriptTemplate(className: string): string {
+  return [
+    'import { Script } from "@mge/core";',
+    "",
+    `export default class ${className} extends Script {`,
+    "  speed = 220;",
+    "",
+    "  override update(dt: number): void {",
+    "    if (this.input.keyDown(\"KeyD\")) {",
+    "      this.transform.x += this.speed * dt;",
+    "    }",
+    "  }",
+    "}",
+    ""
+  ].join("\n");
+}
+
+function toScriptClassName(name: string): string {
+  const sanitized = name
+    .replace(/[^A-Za-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join("");
+
+  return sanitized.endsWith("Controller") ? sanitized : `${sanitized || "New"}Controller`;
+}
+
+function isScriptPath(path: string): boolean {
+  return path.endsWith(".ts") || path.endsWith(".mgescript.ts");
 }
 
 export default editorInspectorModule;

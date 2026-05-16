@@ -47,6 +47,9 @@ importers:
 
   apps/editor:
     dependencies:
+      '@mge/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
       '@mge/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -71,6 +74,9 @@ importers:
       '@mge/editor-inspector':
         specifier: workspace:*
         version: link:../../packages/editor-inspector
+      '@mge/editor-plugin-manager':
+        specifier: workspace:*
+        version: link:../../packages/editor-plugin-manager
       '@mge/editor-text':
         specifier: workspace:*
         version: link:../../packages/editor-text
@@ -86,6 +92,9 @@ importers:
       '@mge/mgengineui':
         specifier: workspace:*
         version: link:../../packages/mgengineui
+      '@mge/project':
+        specifier: workspace:*
+        version: link:../../packages/project
       '@mge/renderer-canvas2d':
         specifier: workspace:*
         version: link:../../packages/renderer-canvas2d
@@ -95,6 +104,9 @@ importers:
       '@mge/scripting-ts':
         specifier: workspace:*
         version: link:../../packages/scripting-ts
+      '@mge/storage-local':
+        specifier: workspace:*
+        version: link:../../packages/storage-local
       '@mge/time':
         specifier: workspace:*
         version: link:../../packages/time
@@ -131,6 +143,15 @@ importers:
       '@mge/time':
         specifier: workspace:*
         version: link:../../packages/time
+
+  packages/assets:
+    dependencies:
+      '@mge/editor-core':
+        specifier: workspace:*
+        version: link:../editor-core
+      '@mge/kernel':
+        specifier: workspace:*
+        version: link:../kernel
 
   packages/core:
     dependencies:
@@ -179,6 +200,9 @@ importers:
 
   packages/editor-assets:
     dependencies:
+      '@mge/assets':
+        specifier: workspace:*
+        version: link:../assets
       '@mge/editor-core':
         specifier: workspace:*
         version: link:../editor-core
@@ -249,6 +273,18 @@ importers:
         specifier: workspace:*
         version: link:../scripting-ts
 
+  packages/editor-plugin-manager:
+    dependencies:
+      '@mge/editor-core':
+        specifier: workspace:*
+        version: link:../editor-core
+      '@mge/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@mge/mgengineui':
+        specifier: workspace:*
+        version: link:../mgengineui
+
   packages/editor-text:
     dependencies:
       '@mge/core':
@@ -309,6 +345,15 @@ importers:
         specifier: workspace:*
         version: link:../kernel
 
+  packages/project:
+    dependencies:
+      '@mge/editor-core':
+        specifier: workspace:*
+        version: link:../editor-core
+      '@mge/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
   packages/renderer-canvas2d:
     dependencies:
       '@mge/core':
@@ -335,6 +380,12 @@ importers:
       '@mge/ecs':
         specifier: workspace:*
         version: link:../ecs
+      '@mge/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/storage-local:
+    dependencies:
       '@mge/kernel':
         specifier: workspace:*
         version: link:../kernel

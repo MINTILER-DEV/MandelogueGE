@@ -19,6 +19,9 @@
     "paths": {
       "@mge/kernel": ["packages/kernel/src/index.ts"],
       "@mge/core": ["packages/core/src/index.ts"],
+      "@mge/project": ["packages/project/src/index.ts"],
+      "@mge/assets": ["packages/assets/src/index.ts"],
+      "@mge/storage-local": ["packages/storage-local/src/index.ts"],
       "@mge/mgengineui": ["packages/mgengineui/src/index.ts"],
       "@mge/editor-core": ["packages/editor-core/src/index.ts"],
       "@mge/editor-viewport": ["packages/editor-viewport/src/index.ts"],

@@ -83,7 +83,8 @@ export class ScriptComponent extends Component {
 
   start(ctx: RuntimeFrameContext): void {
     if (!this.script) {
-      throw new Error("ScriptComponent requires a script path.");
+      console.warn("ScriptComponent started without a script path.");
+      return;
     }
 
     const runtime = ctx.services.require<ScriptRuntimeService>("script-runtime");
