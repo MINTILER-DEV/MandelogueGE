@@ -1,4 +1,11 @@
-import type { AssetImportDescriptor, AssetRecord, AssetsService } from "@mge/assets";
+import {
+  isAssetPath,
+  metaPathFor,
+  normalizeImportedAssetPath,
+  type AssetImportDescriptor,
+  type AssetRecord,
+  type AssetsService
+} from "@mge/assets";
 import type { EditorProjectFile, EditorService } from "@mge/editor-core";
 import type { MGECModule } from "@mge/kernel";
 import type { MGEngineUIService, MGEngineUITreeNode } from "@mge/mgengineui";
@@ -153,6 +160,28 @@ function renderToolbar(
         });
       },
       variant: "ghost"
+    }),
+    ui.button.create({
+      label: "Delete Asset",
+      onClick: () => {
+        const assetPath = resolveSelectedAssetPath(editor);
+
+        if (!assetPath) {
+          editor.log("warn", "Select an asset or asset metadata file to delete it.", "@mge/editor-assets");
+          return;
+        }
+
+        const deleted = deleteProjectAsset(editor, assetPath);
+
+        if (!deleted) {
+          editor.log("warn", `Could not delete "${assetPath}".`, "@mge/editor-assets");
+          return;
+        }
+
+        editor.log("info", `Deleted "${assetPath}".`, "@mge/editor-assets");
+        editor.refresh();
+      },
+      variant: "ghost"
     })
   );
 
@@ -262,17 +291,15 @@ async function syncFolderHandle(
   editor: EditorService
 ): Promise<SyncedFolderSession | null> {
   const files = await collectDirectoryFiles(handle);
-
-  if (files.length === 0) {
-    editor.log("warn", `Folder "${handle.name}" did not contain any files.`, "@mge/editor-assets");
-    return null;
-  }
-
   const descriptors = await Promise.all(
     files.map(({ file, relativePath }) => readFileDescriptor(file, `${handle.name}/${relativePath}`))
   );
-  const imported = assets.importFiles(descriptors);
-  finalizeImportedSelection(imported, editor, `Synced ${imported.length} file(s) from "${handle.name}".`);
+  const result = syncImportedFolder(assets, editor, handle.name, descriptors);
+  finalizeImportedSelection(
+    result.imported,
+    editor,
+    `Synced ${result.imported.length} file(s) from "${handle.name}" and removed ${result.deleted} stale asset(s).`
+  );
   return {
     folderName: handle.name,
     handle
@@ -312,11 +339,15 @@ async function syncFolderFromBrowserInput(
       return readFileDescriptor(file, relativePath);
     })
   );
-  const imported = assets.importFiles(descriptors);
-  finalizeImportedSelection(imported, editor, `Synced ${imported.length} file(s) from "${folderName}".`);
+  const result = syncImportedFolder(assets, editor, folderName, descriptors);
+  finalizeImportedSelection(
+    result.imported,
+    editor,
+    `Synced ${result.imported.length} file(s) from "${folderName}" and removed ${result.deleted} stale asset(s).`
+  );
   return {
     folderName,
-    importedCount: imported.length
+    importedCount: result.imported.length
   };
 }
 
@@ -347,13 +378,99 @@ async function collectDirectoryFiles(
 }
 
 function finalizeImportedSelection(imported: AssetRecord[], editor: EditorService, message: string): void {
-  if (imported.length === 0) {
-    return;
+  if (imported.length > 0) {
+    editor.selectFile(imported[0]?.path ?? null);
   }
 
-  editor.selectFile(imported[0]?.path ?? null);
   editor.log("info", message, "@mge/editor-assets");
   editor.refresh();
+}
+
+function syncImportedFolder(
+  assets: AssetsService,
+  editor: EditorService,
+  folderName: string,
+  descriptors: AssetImportDescriptor[]
+): { deleted: number; imported: AssetRecord[] } {
+  const rootPath = normalizeImportedAssetPath(folderName);
+  const incomingPaths = new Set(
+    descriptors.map((descriptor) => normalizeImportedAssetPath(descriptor.relativePath ?? `${folderName}/${descriptor.fileName}`))
+  );
+  const currentAssetPaths = new Set(
+    editor
+      .getProjectFiles()
+      .filter((file) => {
+        const assetPath = assetPathForProjectFile(file.path, file.kind);
+        return Boolean(assetPath && isPathWithinRoot(assetPath, rootPath));
+      })
+      .map((file) => assetPathForProjectFile(file.path, file.kind) as string)
+  );
+  let deleted = 0;
+
+  for (const assetPath of currentAssetPaths) {
+    if (incomingPaths.has(assetPath)) {
+      continue;
+    }
+
+    deleted += deleteProjectAsset(editor, assetPath, { save: false });
+  }
+
+  const imported = descriptors.length > 0 ? assets.importFiles(descriptors) : [];
+
+  if (descriptors.length === 0 && deleted > 0) {
+    editor.saveProject();
+  }
+
+  return { deleted, imported };
+}
+
+function deleteProjectAsset(
+  editor: EditorService,
+  assetPath: string,
+  options?: { save?: boolean }
+): number {
+  let deleted = 0;
+
+  deleted += editor.deleteProjectFile(assetPath) ? 1 : 0;
+  deleted += editor.deleteProjectFile(metaPathFor(assetPath)) ? 1 : 0;
+
+  if (deleted > 0 && options?.save !== false) {
+    editor.saveProject();
+  }
+
+  return deleted;
+}
+
+function resolveSelectedAssetPath(editor: EditorService): string | null {
+  const selectedPath = editor.getSelectedFilePath();
+
+  if (!selectedPath) {
+    return null;
+  }
+
+  const selectedFile = editor.getProjectFile(selectedPath);
+
+  if (!selectedFile) {
+    return null;
+  }
+
+  return assetPathForProjectFile(selectedFile.path, selectedFile.kind);
+}
+
+function isPathWithinRoot(path: string, rootPath: string): boolean {
+  return path === rootPath || path.startsWith(`${rootPath}/`);
+}
+
+function assetPathForProjectFile(path: string, kind: EditorProjectFile["kind"]): string | null {
+  if (kind === "asset" || isAssetPath(path)) {
+    return path;
+  }
+
+  if (kind === "assetmeta" || path.endsWith(".assetmeta.json")) {
+    return path.replace(/\.assetmeta\.json$/i, "");
+  }
+
+  return null;
 }
 
 function resolveBrowserFolderName(files: File[]): string {

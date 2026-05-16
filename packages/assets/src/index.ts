@@ -181,4 +181,4 @@ function sanitizePathSegment(value: string): string {
 }
 
 export default assetsModule;
-export { createAssetMetadata, normalizeImportedAssetPath, resolveAssetImportPath };
+export { createAssetMetadata, isAssetPath, metaPathFor, normalizeImportedAssetPath, resolveAssetImportPath };

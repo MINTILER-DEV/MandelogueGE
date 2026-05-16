@@ -45,6 +45,7 @@ export interface EditorStorageLike {
 export interface EditorService {
   addEntity(name?: string): Entity;
   clearLogs(): void;
+  deleteProjectFile(path: string): boolean;
   getProjectFile(path: string): EditorProjectFile | null;
   getLogs(): EditorLogEntry[];
   getProjectFiles(): EditorProjectFile[];
@@ -152,6 +153,23 @@ const editorCoreModule: MGECModule = {
       clearLogs() {
         logs = [];
         editor.refresh();
+      },
+      deleteProjectFile(path) {
+        const index = projectFiles.findIndex((file) => file.path === path);
+
+        if (index < 0) {
+          return false;
+        }
+
+        projectFiles = projectFiles.filter((file) => file.path !== path);
+
+        if (selectedFilePath === path) {
+          selectedFilePath = projectFiles[index]?.path ?? projectFiles[index - 1]?.path ?? null;
+          emit({ filePath: selectedFilePath, type: "file-selection-changed" });
+        }
+
+        emit({ type: "files-changed" });
+        return true;
       },
       getProjectFile(path) {
         return projectFiles.find((file) => file.path === path) ?? null;
