@@ -1,9 +1,10 @@
-import type { AssetRecord, AssetsService } from "@mge/assets";
+import type { AssetImportDescriptor, AssetRecord, AssetsService } from "@mge/assets";
 import type { EditorProjectFile, EditorService } from "@mge/editor-core";
 import type { MGECModule } from "@mge/kernel";
 import type { MGEngineUIService, MGEngineUITreeNode } from "@mge/mgengineui";
 
 interface TextEditorServiceLike {
+  createScript(path?: string): EditorProjectFile | null;
   openFile(path: string, options?: { activatePanel?: boolean }): void;
 }
 
@@ -18,10 +19,16 @@ interface AssetTreeBranch {
 
 const ASSET_STYLE_ID = "mge-editor-assets-styles";
 
+interface SyncedFolderSession {
+  folderName: string;
+  handle: FileSystemDirectoryHandle;
+}
+
 const editorAssetsModule: MGECModule = {
   id: "@mge/editor-assets",
 
   setup(ctx) {
+    let lastSyncedFolder: SyncedFolderSession | null = null;
     let preferredMode: "auto" | "explorer" | "preview" = "auto";
     const ui = ctx.services.require<MGEngineUIService>("mgengineui");
 
@@ -47,11 +54,17 @@ const editorAssetsModule: MGECModule = {
         stack.append(renderToolbar({
           assets,
           editor,
+          lastSyncedFolder,
           onModeChange(mode) {
             preferredMode = mode;
             uiService.invalidate();
           },
-          preferredMode
+          onSyncedFolderChange(nextFolder) {
+            lastSyncedFolder = nextFolder;
+            uiService.invalidate();
+          },
+          preferredMode,
+          textEditor
         }, uiService));
         stack.append(uiService.tree.render(buildAssetTree(files, selectedPath, editor, textEditor)));
 
@@ -73,14 +86,17 @@ function renderToolbar(
   options: {
     assets: AssetsService | null;
     editor: EditorService;
+    lastSyncedFolder: SyncedFolderSession | null;
     onModeChange(mode: "auto" | "explorer" | "preview"): void;
+    onSyncedFolderChange(nextFolder: SyncedFolderSession | null): void;
     preferredMode: "auto" | "explorer" | "preview";
+    textEditor: TextEditorServiceLike | null;
   },
   ui: MGEngineUIService
 ): HTMLElement {
   const toolbar = document.createElement("div");
   toolbar.className = "mge-inline-actions";
-  const { assets, editor, onModeChange, preferredMode } = options;
+  const { assets, editor, lastSyncedFolder, onModeChange, onSyncedFolderChange, preferredMode, textEditor } = options;
 
   toolbar.append(
     ui.button.create({
@@ -99,7 +115,19 @@ function renderToolbar(
       variant: preferredMode === "preview" ? "accent" : "ghost"
     }),
     ui.button.create({
-      label: "Import",
+      label: "New Script",
+      onClick: () => {
+        if (!textEditor) {
+          editor.log("warn", "No text editor service is registered.", "@mge/editor-assets");
+          return;
+        }
+
+        textEditor.createScript();
+      },
+      variant: "ghost"
+    }),
+    ui.button.create({
+      label: "Import Files",
       onClick: () => {
         if (!assets) {
           editor.log("warn", "No assets service is registered.", "@mge/editor-assets");
@@ -109,8 +137,45 @@ function renderToolbar(
         void importFilesFromBrowser(assets, editor);
       },
       variant: "accent"
+    }),
+    ui.button.create({
+      label: "Sync Folder",
+      onClick: () => {
+        if (!assets) {
+          editor.log("warn", "No assets service is registered.", "@mge/editor-assets");
+          return;
+        }
+
+        void syncFolderFromDevice(assets, editor).then((session) => {
+          if (session) {
+            onSyncedFolderChange(session);
+          }
+        });
+      },
+      variant: "ghost"
     })
   );
+
+  if (lastSyncedFolder) {
+    toolbar.append(
+      ui.button.create({
+        label: `Re-sync ${lastSyncedFolder.folderName}`,
+        onClick: () => {
+          if (!assets) {
+            editor.log("warn", "No assets service is registered.", "@mge/editor-assets");
+            return;
+          }
+
+          void syncFolderHandle(lastSyncedFolder.handle, assets, editor).then((session) => {
+            if (session) {
+              onSyncedFolderChange(session);
+            }
+          });
+        },
+        variant: "ghost"
+      })
+    );
+  }
 
   return toolbar;
 }
@@ -146,15 +211,172 @@ async function importFilesFromBrowser(assets: AssetsService, editor: EditorServi
   }
 }
 
-async function readFileDescriptor(file: File): Promise<{ content: string; fileName: string; mimeType: string }> {
+async function readFileDescriptor(file: File, relativePath?: string): Promise<AssetImportDescriptor> {
   const mimeType = file.type || inferMimeType(file.name);
   const content = shouldReadAsText(file.name, mimeType) ? await file.text() : await readAsDataUrl(file);
 
   return {
     content,
     fileName: file.name,
-    mimeType
+    mimeType,
+    relativePath
   };
+}
+
+async function syncFolderFromDevice(
+  assets: AssetsService,
+  editor: EditorService
+): Promise<SyncedFolderSession | null> {
+  const directoryPicker = resolveDirectoryPicker();
+
+  if (directoryPicker) {
+    try {
+      const handle = await directoryPicker();
+      return syncFolderHandle(handle, assets, editor);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return null;
+      }
+
+      editor.log("error", `Folder sync failed: ${String(error)}`, "@mge/editor-assets");
+      return null;
+    }
+  }
+
+  const fallback = await syncFolderFromBrowserInput(assets, editor);
+
+  if (fallback) {
+    editor.log(
+      "info",
+      `Synced "${fallback.folderName}". Re-sync requires a browser with directory handle support.`,
+      "@mge/editor-assets"
+    );
+  }
+
+  return null;
+}
+
+async function syncFolderHandle(
+  handle: FileSystemDirectoryHandle,
+  assets: AssetsService,
+  editor: EditorService
+): Promise<SyncedFolderSession | null> {
+  const files = await collectDirectoryFiles(handle);
+
+  if (files.length === 0) {
+    editor.log("warn", `Folder "${handle.name}" did not contain any files.`, "@mge/editor-assets");
+    return null;
+  }
+
+  const descriptors = await Promise.all(
+    files.map(({ file, relativePath }) => readFileDescriptor(file, `${handle.name}/${relativePath}`))
+  );
+  const imported = assets.importFiles(descriptors);
+  finalizeImportedSelection(imported, editor, `Synced ${imported.length} file(s) from "${handle.name}".`);
+  return {
+    folderName: handle.name,
+    handle
+  };
+}
+
+async function syncFolderFromBrowserInput(
+  assets: AssetsService,
+  editor: EditorService
+): Promise<{ folderName: string; importedCount: number } | null> {
+  const input = document.createElement("input");
+  input.accept = "*/*";
+  input.multiple = true;
+  input.type = "file";
+  input.setAttribute("webkitdirectory", "");
+
+  const files = await new Promise<File[]>((resolve) => {
+    input.addEventListener(
+      "change",
+      () => {
+        resolve(Array.from(input.files ?? []));
+      },
+      { once: true }
+    );
+    input.click();
+  });
+
+  if (files.length === 0) {
+    return null;
+  }
+
+  const folderName = resolveBrowserFolderName(files);
+  const descriptors = await Promise.all(
+    files.map((file) => {
+      const browserFile = file as File & { webkitRelativePath?: string };
+      const relativePath = browserFile.webkitRelativePath || `${folderName}/${file.name}`;
+      return readFileDescriptor(file, relativePath);
+    })
+  );
+  const imported = assets.importFiles(descriptors);
+  finalizeImportedSelection(imported, editor, `Synced ${imported.length} file(s) from "${folderName}".`);
+  return {
+    folderName,
+    importedCount: imported.length
+  };
+}
+
+async function collectDirectoryFiles(
+  handle: FileSystemDirectoryHandle,
+  parentPath = ""
+): Promise<Array<{ file: File; relativePath: string }>> {
+  const files: Array<{ file: File; relativePath: string }> = [];
+  const directoryHandle = handle as FileSystemDirectoryHandle & {
+    entries(): AsyncIterable<[string, FileSystemDirectoryEntryLike | FileSystemFileEntryLike]>;
+  };
+
+  for await (const [name, entry] of directoryHandle.entries()) {
+    const relativePath = parentPath ? `${parentPath}/${name}` : name;
+
+    if (entry.kind === "file") {
+      files.push({
+        file: await entry.getFile(),
+        relativePath
+      });
+      continue;
+    }
+
+    files.push(...(await collectDirectoryFiles(entry, relativePath)));
+  }
+
+  return files.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+}
+
+function finalizeImportedSelection(imported: AssetRecord[], editor: EditorService, message: string): void {
+  if (imported.length === 0) {
+    return;
+  }
+
+  editor.selectFile(imported[0]?.path ?? null);
+  editor.log("info", message, "@mge/editor-assets");
+  editor.refresh();
+}
+
+function resolveBrowserFolderName(files: File[]): string {
+  const first = files[0] as File & { webkitRelativePath?: string };
+  const rootName = first.webkitRelativePath?.split("/").filter(Boolean)[0];
+  return rootName || "SyncedFolder";
+}
+
+function resolveDirectoryPicker(): (() => Promise<FileSystemDirectoryHandle>) | null {
+  const target = globalThis as typeof globalThis & {
+    showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
+  };
+  const picker = target.showDirectoryPicker;
+
+  return typeof picker === "function" ? () => picker.call(target) : null;
+}
+
+interface FileSystemDirectoryEntryLike extends FileSystemDirectoryHandle {
+  kind: "directory";
+}
+
+interface FileSystemFileEntryLike extends FileSystemFileHandle {
+  kind: "file";
 }
 
 function readAsDataUrl(file: File): Promise<string> {

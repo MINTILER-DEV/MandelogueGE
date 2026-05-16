@@ -13,6 +13,7 @@ import { compileTypeScriptModule, evaluateCommonJsModule } from "./script-compil
 import { readScriptEditableValues, type ScriptEditableValue, updateScriptEditableValue } from "./script-properties.js";
 
 export interface TextEditorService {
+  createScript(path?: string): EditorProjectFile | null;
   find(): void;
   focus(): void;
   getActivePath(): string | null;
@@ -153,6 +154,24 @@ function createTextEditorService(dependencies: {
 
   const textEditor: InternalTextEditorService = {
     __panelRoot: panelRoot,
+    createScript(path) {
+      const nextPath = path ?? nextScriptPath(editor);
+      const content = createScriptTemplate(classNameFromScriptPath(nextPath));
+
+      editor.updateProjectFile(nextPath, content, {
+        kind: "script",
+        select: true
+      });
+      savedContents.set(nextPath, content);
+      dirtyPaths.delete(nextPath);
+      syncScriptPropertiesFromSource(nextPath, content);
+      hotReloadScript(nextPath, content, null);
+      textEditor.openFile(nextPath, { activatePanel: true });
+      editor.saveProject();
+      editor.log("info", `Created "${nextPath}".`, "@mge/editor-text");
+      renderPanel();
+      return editor.getProjectFile(nextPath);
+    },
     find() {
       void codeEditor?.getAction("actions.find")?.run();
     },
@@ -550,6 +569,13 @@ function createTextEditorService(dependencies: {
     toolbar.replaceChildren();
     toolbar.append(
       ui.button.create({
+        label: "New Script",
+        onClick: () => {
+          textEditor.createScript();
+        },
+        variant: "ghost"
+      }),
+      ui.button.create({
         label: "Save File",
         onClick: () => {
           void textEditor.saveActiveFile();
@@ -645,6 +671,14 @@ function registerTextEditorCommands(
   editor: EditorService,
   textEditor: TextEditorService
 ): void {
+  ui.commands.register({
+    id: "editor-text.new-script",
+    keywords: ["create", "file", "script", "typescript"],
+    run: () => {
+      textEditor.createScript();
+    },
+    title: "Create Script"
+  });
   ui.commands.register({
     id: "editor-text.focus",
     run: () => {
@@ -829,6 +863,49 @@ function isEditableTextFile(file: EditorProjectFile | null): file is EditorProje
 
 function isScriptFile(path: string): boolean {
   return path.endsWith(".ts") || path.endsWith(".mgescript.ts");
+}
+
+function nextScriptPath(editor: EditorService): string {
+  const baseName = "NewScript";
+  let index = 0;
+
+  while (true) {
+    const suffix = index === 0 ? "" : String(index + 1);
+    const path = `./scripts/${baseName}${suffix}.ts`;
+
+    if (!editor.getProjectFile(path)) {
+      return path;
+    }
+
+    index += 1;
+  }
+}
+
+function createScriptTemplate(className: string): string {
+  return [
+    'import { Script } from "@mge/core";',
+    "",
+    `export default class ${className} extends Script {`,
+    "  start(): void {",
+    "    // Called when the script is first bound to an entity.",
+    "  }",
+    "",
+    "  update(_dt: number): void {",
+    "    // Called once per frame.",
+    "  }",
+    "}",
+    ""
+  ].join("\n");
+}
+
+function classNameFromScriptPath(path: string): string {
+  const rawName = basename(path).replace(/\.(?:mgescript\.)?ts$/i, "");
+  const tokens = rawName.match(/[A-Za-z0-9]+/g) ?? ["Script"];
+  const normalized = tokens
+    .map((token) => `${token.slice(0, 1).toUpperCase()}${token.slice(1)}`)
+    .join("");
+
+  return /^[A-Za-z_]/.test(normalized) ? normalized : `Script${normalized}`;
 }
 
 function basename(path: string): string {

@@ -20,6 +20,7 @@ export interface AssetImportDescriptor {
   content: string;
   fileName: string;
   mimeType: string;
+  relativePath?: string;
 }
 
 export interface AssetsService {
@@ -68,7 +69,7 @@ const assetsModule: MGECModule = {
         const imported: AssetRecord[] = [];
 
         for (const file of files) {
-          const path = nextAssetPath(editor, file.fileName);
+          const path = resolveAssetImportPath(editor, file);
           const meta = createAssetMetadata(path, file.mimeType);
           const metaPath = metaPathFor(path);
 
@@ -127,6 +128,14 @@ function metaPathFor(path: string): string {
   return `${path}.assetmeta.json`;
 }
 
+function resolveAssetImportPath(editor: EditorService, file: AssetImportDescriptor): string {
+  if (typeof file.relativePath === "string" && file.relativePath.trim().length > 0) {
+    return normalizeImportedAssetPath(file.relativePath);
+  }
+
+  return nextAssetPath(editor, file.fileName);
+}
+
 function nextAssetPath(editor: EditorService, fileName: string): string {
   const sanitized = sanitizeFileName(fileName);
   const extIndex = sanitized.lastIndexOf(".");
@@ -143,9 +152,33 @@ function nextAssetPath(editor: EditorService, fileName: string): string {
   return candidate;
 }
 
+function normalizeImportedAssetPath(relativePath: string): string {
+  const sanitizedSegments = relativePath
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((segment) => sanitizePathSegment(segment))
+    .filter(Boolean);
+
+  if (sanitizedSegments.length === 0) {
+    return "./assets/imported-file";
+  }
+
+  return `./assets/${sanitizedSegments.join("/")}`;
+}
+
 function sanitizeFileName(fileName: string): string {
-  return fileName.replace(/[^A-Za-z0-9._-]+/g, "-");
+  return sanitizePathSegment(fileName) || "file";
+}
+
+function sanitizePathSegment(value: string): string {
+  const sanitized = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+
+  if (!sanitized || sanitized === "." || sanitized === "..") {
+    return "";
+  }
+
+  return sanitized;
 }
 
 export default assetsModule;
-export { createAssetMetadata };
+export { createAssetMetadata, normalizeImportedAssetPath, resolveAssetImportPath };
