@@ -15,6 +15,8 @@ interface TextEditorServiceLike {
   openFile(path: string, options?: { activatePanel?: boolean }): void;
 }
 
+type AssetPanelMode = "auto" | "explorer" | "preview";
+
 interface AssetTreeBranch {
   children: Map<string, AssetTreeBranch>;
   file?: {
@@ -36,7 +38,7 @@ const editorAssetsModule: MGECModule = {
 
   setup(ctx) {
     let lastSyncedFolder: SyncedFolderSession | null = null;
-    let preferredMode: "auto" | "explorer" | "preview" = "auto";
+    let preferredMode: AssetPanelMode = "auto";
     const ui = ctx.services.require<MGEngineUIService>("mgengineui");
 
     ui.panels.register({
@@ -94,35 +96,47 @@ function renderToolbar(
     assets: AssetsService | null;
     editor: EditorService;
     lastSyncedFolder: SyncedFolderSession | null;
-    onModeChange(mode: "auto" | "explorer" | "preview"): void;
+    onModeChange(mode: AssetPanelMode): void;
     onSyncedFolderChange(nextFolder: SyncedFolderSession | null): void;
-    preferredMode: "auto" | "explorer" | "preview";
+    preferredMode: AssetPanelMode;
     textEditor: TextEditorServiceLike | null;
   },
   ui: MGEngineUIService
 ): HTMLElement {
   const toolbar = document.createElement("div");
-  toolbar.className = "mge-inline-actions";
+  toolbar.className = "mge-assets-toolbar";
   const { assets, editor, lastSyncedFolder, onModeChange, onSyncedFolderChange, preferredMode, textEditor } = options;
 
-  toolbar.append(
-    ui.button.create({
-      label: "Auto",
-      onClick: () => onModeChange("auto"),
-      variant: preferredMode === "auto" ? "accent" : "ghost"
+  const modeGroup = document.createElement("div");
+  modeGroup.className = "mge-assets-toolbar__group mge-assets-toolbar__group--mode";
+  modeGroup.append(
+    createToolbarButton(ui, {
+      active: preferredMode === "auto",
+      icon: "codicon codicon-layout",
+      label: "Auto layout",
+      onClick: () => onModeChange("auto")
     }),
-    ui.button.create({
-      label: "Explorer",
-      onClick: () => onModeChange("explorer"),
-      variant: preferredMode === "explorer" ? "accent" : "ghost"
+    createToolbarButton(ui, {
+      active: preferredMode === "explorer",
+      icon: "codicon codicon-files",
+      label: "Explorer layout",
+      onClick: () => onModeChange("explorer")
     }),
-    ui.button.create({
-      label: "Preview",
-      onClick: () => onModeChange("preview"),
-      variant: preferredMode === "preview" ? "accent" : "ghost"
-    }),
-    ui.button.create({
-      label: "New Script",
+    createToolbarButton(ui, {
+      active: preferredMode === "preview",
+      icon: "codicon codicon-preview",
+      label: "Preview layout",
+      onClick: () => onModeChange("preview")
+    })
+  );
+  toolbar.append(modeGroup);
+
+  const actionGroup = document.createElement("div");
+  actionGroup.className = "mge-assets-toolbar__group";
+  actionGroup.append(
+    createToolbarButton(ui, {
+      icon: "codicon codicon-new-file",
+      label: "New script",
       onClick: () => {
         if (!textEditor) {
           editor.log("warn", "No text editor service is registered.", "@mge/editor-assets");
@@ -130,11 +144,11 @@ function renderToolbar(
         }
 
         textEditor.createScript();
-      },
-      variant: "ghost"
+      }
     }),
-    ui.button.create({
-      label: "Import Files",
+    createToolbarButton(ui, {
+      icon: "codicon codicon-add",
+      label: "Import files",
       onClick: () => {
         if (!assets) {
           editor.log("warn", "No assets service is registered.", "@mge/editor-assets");
@@ -145,8 +159,9 @@ function renderToolbar(
       },
       variant: "accent"
     }),
-    ui.button.create({
-      label: "Sync Folder",
+    createToolbarButton(ui, {
+      icon: "codicon codicon-folder-opened",
+      label: "Sync folder",
       onClick: () => {
         if (!assets) {
           editor.log("warn", "No assets service is registered.", "@mge/editor-assets");
@@ -158,11 +173,11 @@ function renderToolbar(
             onSyncedFolderChange(session);
           }
         });
-      },
-      variant: "ghost"
+      }
     }),
-    ui.button.create({
-      label: "Delete Asset",
+    createToolbarButton(ui, {
+      icon: "codicon codicon-trash",
+      label: "Delete asset",
       onClick: () => {
         const assetPath = resolveSelectedAssetPath(editor);
 
@@ -180,15 +195,19 @@ function renderToolbar(
 
         editor.log("info", `Deleted "${assetPath}".`, "@mge/editor-assets");
         editor.refresh();
-      },
-      variant: "ghost"
+      }
     })
   );
+  toolbar.append(actionGroup);
 
   if (lastSyncedFolder) {
-    toolbar.append(
+    const syncGroup = document.createElement("div");
+    syncGroup.className = "mge-assets-toolbar__group";
+    syncGroup.append(
       ui.button.create({
+        icon: "codicon codicon-sync",
         label: `Re-sync ${lastSyncedFolder.folderName}`,
+        hideLabel: true,
         onClick: () => {
           if (!assets) {
             editor.log("warn", "No assets service is registered.", "@mge/editor-assets");
@@ -201,12 +220,34 @@ function renderToolbar(
             }
           });
         },
+        title: `Re-sync ${lastSyncedFolder.folderName}`,
         variant: "ghost"
       })
     );
+    toolbar.append(syncGroup);
   }
 
   return toolbar;
+}
+
+function createToolbarButton(
+  ui: MGEngineUIService,
+  options: {
+    active?: boolean;
+    icon: string;
+    label: string;
+    onClick(): void;
+    variant?: "accent" | "ghost" | "subtle";
+  }
+): HTMLButtonElement {
+  return ui.button.create({
+    hideLabel: true,
+    icon: options.icon,
+    label: options.label,
+    onClick: options.onClick,
+    title: options.label,
+    variant: options.active ? "accent" : (options.variant ?? "ghost")
+  });
 }
 
 async function importFilesFromBrowser(assets: AssetsService, editor: EditorService): Promise<void> {
@@ -661,7 +702,7 @@ function materializeAssetNodes(
 
       return {
         children: childNodes.length > 0 ? childNodes : undefined,
-        icon: isFile ? iconForFile(name, fileKind ?? "other") : "/>",
+        iconClass: isFile ? iconForFile(name, fileKind ?? "other") : "codicon codicon-folder",
         label: name,
         onOpen: openFile,
         onSelect: isFile && filePath ? () => editor.selectFile(filePath) : undefined,
@@ -692,30 +733,40 @@ function isEditableTextFile(path: string, kind: EditorProjectFile["kind"]): bool
 
 function iconForFile(path: string, kind: EditorProjectFile["kind"]): string {
   if (kind === "assetmeta") {
-    return "M";
+    return "codicon codicon-json";
   }
 
   if (kind === "asset") {
-    return path.match(/\.(png|jpe?g|gif|webp)$/i) ? "I" : "A";
+    return path.match(/\.(png|jpe?g|gif|webp)$/i)
+      ? "codicon codicon-file-media"
+      : "codicon codicon-file";
+  }
+
+  if (kind === "workspace" || kind === "config" || kind === "lockfile") {
+    return "codicon codicon-settings-gear";
   }
 
   if (path.endsWith(".json")) {
-    return "{}";
+    return "codicon codicon-json";
   }
 
   if (path.endsWith(".ts")) {
-    return "TS";
+    return "codicon codicon-symbol-class";
   }
 
   if (path.endsWith(".js")) {
-    return "JS";
+    return "codicon codicon-symbol-method";
   }
 
   if (path.endsWith(".md")) {
-    return "MD";
+    return "codicon codicon-book";
   }
 
-  return "--";
+  if (path.endsWith(".txt")) {
+    return "codicon codicon-note";
+  }
+
+  return "codicon codicon-file";
 }
 
 function ensureAssetsStyles(documentRef: Document): void {
@@ -726,8 +777,35 @@ function ensureAssetsStyles(documentRef: Document): void {
   const style = documentRef.createElement("style");
   style.id = ASSET_STYLE_ID;
   style.textContent = `
+    .mge-assets-toolbar {
+      align-items: center;
+      display: flex;
+      gap: 0.35rem;
+      justify-content: space-between;
+    }
+    .mge-assets-toolbar__group {
+      align-items: center;
+      display: flex;
+      gap: 0.15rem;
+      min-width: 0;
+    }
+    .mge-assets-toolbar__group--mode {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 0.35rem;
+      padding: 0.1rem;
+    }
+    .mge-assets-toolbar .mge-ui-button {
+      min-width: 1.7rem;
+      padding: 0.15rem;
+    }
     .mge-assets-panel.is-explorer .mge-property-grid {
       display: none;
+    }
+    .mge-assets-panel.is-explorer .mge-assets-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 1;
     }
     .mge-assets-panel.is-explorer .mge-tree {
       gap: 0.1rem;
@@ -736,24 +814,29 @@ function ensureAssetsStyles(documentRef: Document): void {
       background: transparent;
       border-color: transparent;
       justify-content: flex-start;
-      padding: 0.14rem 0.35rem;
+      min-height: 1.55rem;
+      padding: 0.08rem 0.3rem;
     }
     .mge-assets-panel.is-explorer .mge-tree-node:hover {
       background: rgba(255, 255, 255, 0.04);
     }
     .mge-assets-panel.is-explorer .mge-tree-node.is-selected {
-      background: rgba(55, 148, 255, 0.18);
+      background: rgba(0, 122, 204, 0.2);
     }
     .mge-assets-panel.is-explorer .mge-tree-node__main {
-      gap: 0.3rem;
+      gap: 0.35rem;
+    }
+    .mge-assets-panel.is-explorer .mge-tree-node__icon.codicon {
+      color: #c5c5c5;
+      font-size: 0.95rem;
     }
     .mge-assets-panel.is-explorer .mge-tree-node__trailing {
       display: none;
     }
     .mge-assets-panel.is-explorer .mge-tree-children {
       border-left-color: rgba(255, 255, 255, 0.08);
-      margin-left: 0.5rem;
-      padding-left: 0.5rem;
+      margin-left: 0.45rem;
+      padding-left: 0.45rem;
     }
     .mge-asset-preview__image {
       background: rgba(255, 255, 255, 0.02);

@@ -4,6 +4,8 @@ export type PanelZone = "left" | "center" | "right" | "bottom";
 export type PropertyRowKind = "text" | "number" | "boolean" | "textarea";
 
 export interface MGEngineUIButtonDefinition {
+  hideLabel?: boolean;
+  icon?: string;
   label: string;
   onClick(): void;
   title?: string;
@@ -59,6 +61,7 @@ export interface MGEngineUIPropertyRowDefinition {
 export interface MGEngineUITreeNode {
   children?: MGEngineUITreeNode[];
   icon?: string;
+  iconClass?: string;
   label: string;
   onOpen?(): void;
   onSelect?(): void;
@@ -175,7 +178,21 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
       create(definition) {
         const button = document.createElement("button");
         button.className = `mge-ui-button mge-ui-button--${definition.variant ?? "subtle"}`;
-        button.textContent = definition.label;
+        if (definition.icon) {
+          const icon = document.createElement("span");
+          icon.className = `mge-ui-button__icon ${definition.icon}`;
+          icon.setAttribute("aria-hidden", "true");
+          button.append(icon);
+        }
+
+        if (!definition.hideLabel) {
+          const label = document.createElement("span");
+          label.className = "mge-ui-button__label";
+          label.textContent = definition.label;
+          button.append(label);
+        }
+
+        button.setAttribute("aria-label", definition.title ?? definition.label);
         button.title = definition.title ?? definition.label;
         button.type = "button";
         button.addEventListener("pointerdown", (event) => {
@@ -626,6 +643,8 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
     for (const command of ui.commands.list().filter((candidate) => candidate.toolbar)) {
       toolbar.append(
         ui.button.create({
+          hideLabel: true,
+          icon: iconForCommand(command.id),
           label: command.title,
           onClick: command.run,
           title: formatCommandTooltip(command),
@@ -636,10 +655,12 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
 
     toolbar.append(
       ui.button.create({
+        hideLabel: true,
+        icon: "codicon codicon-terminal-cmd",
         label: "Palette",
         onClick: () => ui.commands.openPalette(),
         title: formatCommandTooltip(commands.get("editor.palette") ?? null),
-        variant: "accent"
+        variant: "ghost"
       })
     );
     bar.append(toolbar);
@@ -693,7 +714,11 @@ function createMGEngineUI(root: HTMLElement): MGEngineUIService {
       const panel = panels.get(panelId) as MGEngineUIPanelDefinition;
       const button = document.createElement("button");
       button.className = panelId === activeByZone.left ? "mge-activity-button is-active" : "mge-activity-button";
-      button.textContent = abbreviationForPanel(panel.title);
+      const icon = document.createElement("span");
+      icon.className = `mge-activity-button__icon ${iconForPanel(panel.title)}`;
+      icon.setAttribute("aria-hidden", "true");
+      button.append(icon);
+      button.setAttribute("aria-label", panel.title);
       button.title = panel.title;
       button.type = "button";
       button.addEventListener("click", () => ui.panels.setActive(panelId));
@@ -921,19 +946,19 @@ function ensureStyles(documentRef: Document): void {
   style.id = STYLE_ID;
   style.textContent = `
     :root {
-      --mge-bg: #1e1e1e;
-      --mge-bg-alt: #252526;
-      --mge-bg-strong: #181818;
-      --mge-panel: #252526;
-      --mge-panel-alt: #1f1f1f;
-      --mge-panel-strong: #1a1a1a;
-      --mge-line: #111111;
-      --mge-line-soft: #3d3d3d;
-      --mge-text: #cccccc;
-      --mge-text-muted: #8b8b8b;
-      --mge-accent: #0e639c;
-      --mge-accent-strong: #1177bb;
-      --mge-accent-soft: rgba(14, 99, 156, 0.28);
+      --mge-bg: #141414;
+      --mge-bg-alt: #181818;
+      --mge-bg-strong: #101010;
+      --mge-panel: #171717;
+      --mge-panel-alt: #1b1b1b;
+      --mge-panel-strong: #131313;
+      --mge-line: #0b0b0b;
+      --mge-line-soft: #2b2b2b;
+      --mge-text: #d4d4d4;
+      --mge-text-muted: #858585;
+      --mge-accent: #007acc;
+      --mge-accent-strong: #1188da;
+      --mge-accent-soft: rgba(0, 122, 204, 0.24);
       --mge-danger: #b85a5a;
       color: var(--mge-text);
       font-family: "Segoe UI", Tahoma, sans-serif;
@@ -976,8 +1001,8 @@ function ensureStyles(documentRef: Document): void {
       border-bottom: 1px solid #000;
       display: grid;
       grid-template-columns: auto minmax(12rem, 1fr) auto;
-      min-height: 2.3rem;
-      padding: 0 0.6rem;
+      min-height: 2rem;
+      padding: 0 0.3rem;
       position: sticky;
       top: 0;
       z-index: 10;
@@ -986,30 +1011,31 @@ function ensureStyles(documentRef: Document): void {
     .mge-titlebar__actions {
       align-items: center;
       display: flex;
-      gap: 0.2rem;
+      gap: 0.15rem;
       min-width: 0;
     }
     .mge-titlebar__title,
     .mge-empty {
       color: var(--mge-text-muted);
-      font-size: 0.9rem;
+      font-size: 0.8rem;
     }
     .mge-titlebar__title {
       overflow: hidden;
-      padding: 0 1rem;
+      padding: 0 0.6rem;
       text-align: center;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .mge-statusbar {
       align-items: center;
-      background: var(--mge-accent);
+      background: #0f0f0f;
       color: #ffffff;
       display: flex;
       gap: 1rem;
       justify-content: space-between;
-      min-height: 1.5rem;
+      min-height: 1.35rem;
       padding: 0 0.55rem;
+      border-top: 1px solid #000;
     }
     .mge-statusbar span,
     .mge-empty {
@@ -1027,12 +1053,15 @@ function ensureStyles(documentRef: Document): void {
     .mge-tab,
     .mge-palette__item,
     .mge-menu__item {
-      background: #2a2d2e;
+      align-items: center;
+      background: transparent;
       border: 1px solid transparent;
       color: var(--mge-text);
       cursor: pointer;
-      min-height: 1.8rem;
-      padding: 0.2rem 0.55rem;
+      display: inline-flex;
+      gap: 0.4rem;
+      min-height: 1.7rem;
+      padding: 0.15rem 0.45rem;
       text-align: left;
     }
     .mge-menu__trigger:hover,
@@ -1040,18 +1069,30 @@ function ensureStyles(documentRef: Document): void {
     .mge-tab:hover,
     .mge-palette__item:hover,
     .mge-menu__item:hover {
-      background: #414141;
+      background: rgba(255, 255, 255, 0.08);
     }
     .mge-ui-button--accent {
-      background: var(--mge-accent-strong);
-      border-color: #0d4f7a;
+      background: rgba(0, 122, 204, 0.18);
+      border-color: rgba(0, 122, 204, 0.3);
+      color: #ffffff;
     }
     .mge-ui-button--ghost,
     .mge-tab.is-active {
-      background: #2f3136;
+      background: rgba(255, 255, 255, 0.05);
     }
     .mge-tab.is-active {
       box-shadow: inset 0 1px 0 var(--mge-accent), inset 0 -1px 0 var(--mge-accent);
+    }
+    .mge-ui-button__icon,
+    .mge-activity-button__icon {
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .mge-titlebar__actions .mge-ui-button {
+      height: 1.7rem;
+      justify-content: center;
+      min-width: 1.7rem;
+      padding: 0.15rem;
     }
     .mge-menu__dropdown {
       background: var(--mge-bg-alt);
@@ -1065,11 +1106,11 @@ function ensureStyles(documentRef: Document): void {
       top: calc(100% + 0.2rem);
     }
     .mge-workspace {
-      --mge-activity-size: 3rem;
+      --mge-activity-size: 3.1rem;
       --mge-bottom-size: 180px;
-      --mge-left-size: 248px;
+      --mge-left-size: 264px;
       --mge-right-size: 300px;
-      --mge-splitter-size: 5px;
+      --mge-splitter-size: 4px;
       background: var(--mge-bg-strong);
       display: grid;
       grid-template-areas:
@@ -1091,9 +1132,9 @@ function ensureStyles(documentRef: Document): void {
       border-right: 1px solid #000;
       display: flex;
       flex-direction: column;
-      gap: 0.15rem;
+      gap: 0.1rem;
       grid-area: activity;
-      padding: 0.35rem 0.25rem;
+      padding: 0.3rem 0.2rem;
     }
     .mge-activity-button {
       align-items: center;
@@ -1102,23 +1143,20 @@ function ensureStyles(documentRef: Document): void {
       color: var(--mge-text-muted);
       cursor: pointer;
       display: flex;
-      font-size: 0.72rem;
-      font-weight: 700;
-      height: 2.1rem;
+      height: 2rem;
       justify-content: center;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      padding: 0;
+      width: 100%;
     }
     .mge-activity-button.is-active {
-      background: #252526;
+      background: rgba(255, 255, 255, 0.04);
       border-color: #000;
       color: var(--mge-text);
       box-shadow: inset 2px 0 0 var(--mge-accent);
     }
     .mge-panel-zone {
       background: var(--mge-panel);
-      border: 1px solid var(--mge-line);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      border: 1px solid #111;
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -1176,7 +1214,7 @@ function ensureStyles(documentRef: Document): void {
       user-select: none;
     }
     .mge-tabs {
-      background: #1f1f1f;
+      background: #161616;
       border-bottom: 1px solid var(--mge-line);
       display: flex;
       gap: 1px;
@@ -1192,16 +1230,16 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-panel-frame__header {
       align-items: center;
-      background: #252526;
+      background: #151515;
       border-bottom: 1px solid var(--mge-line);
       display: flex;
       justify-content: space-between;
-      padding: 0.35rem 0.5rem;
+      padding: 0.3rem 0.45rem;
     }
     .mge-panel-frame__content {
       background: var(--mge-panel-alt);
       overflow: auto;
-      padding: 0.55rem;
+      padding: 0.4rem;
     }
     .mge-panel-frame__content--viewport {
       background: #1a1a1a;
@@ -1226,18 +1264,18 @@ function ensureStyles(documentRef: Document): void {
     }
     .mge-tree-node {
       align-items: center;
-      background: #252526;
+      background: transparent;
       border: 1px solid transparent;
       cursor: pointer;
       display: flex;
       gap: 0.45rem;
       justify-content: space-between;
-      min-height: 1.85rem;
-      padding: 0.24rem 0.45rem;
+      min-height: 1.7rem;
+      padding: 0.14rem 0.35rem;
     }
     .mge-tree-node.is-selected {
-      background: rgba(55, 148, 255, 0.16);
-      border-color: rgba(55, 148, 255, 0.35);
+      background: rgba(0, 122, 204, 0.18);
+      border-color: rgba(0, 122, 204, 0.22);
     }
     .mge-tree-node__main,
     .mge-tree-node__meta {
@@ -1256,6 +1294,9 @@ function ensureStyles(documentRef: Document): void {
     .mge-command-shortcut {
       color: var(--mge-text-muted);
       font-size: 0.78rem;
+    }
+    .mge-tree-node__icon.codicon {
+      font-size: 1rem;
     }
     .mge-tree-children {
       border-left: 1px solid #404040;
@@ -1420,10 +1461,16 @@ function renderTreeNode(node: MGEngineUITreeNode): HTMLElement {
   const main = document.createElement("span");
   main.className = "mge-tree-node__main";
 
-  if (node.icon) {
+  if (node.iconClass || node.icon) {
     const icon = document.createElement("span");
-    icon.className = "mge-tree-node__icon";
-    icon.textContent = node.icon;
+    icon.className = node.iconClass ? `mge-tree-node__icon ${node.iconClass}` : "mge-tree-node__icon";
+
+    if (node.icon) {
+      icon.textContent = node.icon;
+    } else {
+      icon.setAttribute("aria-hidden", "true");
+    }
+
     main.append(icon);
   }
 
@@ -1461,17 +1508,55 @@ function renderTreeNode(node: MGEngineUITreeNode): HTMLElement {
   return wrapper;
 }
 
-function abbreviationForPanel(title: string): string {
-  const words = title
-    .split(/\s+/)
-    .map((segment) => segment.trim())
-    .filter(Boolean);
+function iconForPanel(title: string): string {
+  const normalized = title.toLowerCase();
 
-  if (words.length >= 2) {
-    return `${words[0]?.[0] ?? ""}${words[1]?.[0] ?? ""}`;
+  if (normalized.includes("asset")) {
+    return "codicon codicon-files";
   }
 
-  return title.slice(0, 2);
+  if (normalized.includes("hierarchy")) {
+    return "codicon codicon-list-tree";
+  }
+
+  if (normalized.includes("viewport")) {
+    return "codicon codicon-device-desktop";
+  }
+
+  if (normalized.includes("inspect")) {
+    return "codicon codicon-symbol-property";
+  }
+
+  if (normalized.includes("console")) {
+    return "codicon codicon-terminal";
+  }
+
+  if (normalized.includes("text") || normalized.includes("editor")) {
+    return "codicon codicon-file-code";
+  }
+
+  if (normalized.includes("plugin")) {
+    return "codicon codicon-extensions";
+  }
+
+  return "codicon codicon-layout-sidebar-left";
+}
+
+function iconForCommand(commandId: string): string {
+  switch (commandId) {
+    case "editor.open":
+      return "codicon codicon-folder-opened";
+    case "editor.save":
+      return "codicon codicon-save";
+    case "editor.play-toggle":
+      return "codicon codicon-play";
+    case "editor.add-entity":
+      return "codicon codicon-add";
+    case "editor.clear-logs":
+      return "codicon codicon-clear-all";
+    default:
+      return "codicon codicon-command-center";
+  }
 }
 
 function formatCommandKeybinding(command: MGEngineUICommandDefinition | null): string | null {
