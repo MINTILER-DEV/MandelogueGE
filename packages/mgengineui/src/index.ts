@@ -1,7 +1,7 @@
 import type { MGECModule } from "@mge/kernel";
 
 export type PanelZone = "left" | "center" | "right" | "bottom";
-export type PropertyRowKind = "text" | "number" | "boolean" | "textarea";
+export type PropertyRowKind = "text" | "number" | "boolean" | "textarea" | "color" | "select";
 
 export interface MGEngineUIButtonDefinition {
   hideLabel?: boolean;
@@ -54,7 +54,11 @@ export interface MGEngineUIPropertyRowDefinition {
   kind: PropertyRowKind;
   label: string;
   onChange?(value: boolean | number | string): void;
+  options?: Array<{ label: string; value: string }>;
   readOnly?: boolean;
+  step?: number;
+  max?: number;
+  min?: number;
   value: boolean | number | string;
 }
 
@@ -114,7 +118,7 @@ interface FocusedPropertyFieldSnapshot {
   panelId: string;
   selectionEnd: number | null;
   selectionStart: number | null;
-  tagName: "INPUT" | "TEXTAREA";
+  tagName: "INPUT" | "SELECT" | "TEXTAREA";
   value: string;
 }
 
@@ -865,11 +869,43 @@ function createPropertyField(row: MGEngineUIPropertyRowDefinition, fieldKey: str
     return textarea;
   }
 
+  if (row.kind === "select") {
+    const select = document.createElement("select");
+    select.dataset.mgeFieldKey = fieldKey;
+    select.disabled = row.readOnly ?? false;
+
+    for (const option of row.options ?? []) {
+      const element = document.createElement("option");
+      element.value = option.value;
+      element.textContent = option.label;
+      select.append(element);
+    }
+
+    select.value = String(row.value);
+    select.addEventListener("change", () => row.onChange?.(select.value));
+    return select;
+  }
+
   const input = document.createElement("input");
   input.dataset.mgeFieldKey = fieldKey;
-  input.type = row.kind === "number" ? "number" : "text";
+  input.type = row.kind === "number" ? "number" : row.kind === "color" ? "color" : "text";
   input.value = String(row.value);
   input.readOnly = row.readOnly ?? false;
+
+  if (row.kind === "number") {
+    if (typeof row.min === "number") {
+      input.min = String(row.min);
+    }
+
+    if (typeof row.max === "number") {
+      input.max = String(row.max);
+    }
+
+    if (typeof row.step === "number") {
+      input.step = String(row.step);
+    }
+  }
+
   input.addEventListener("change", () => {
     row.onChange?.(row.kind === "number" ? Number(input.value) : input.value);
   });
@@ -879,7 +915,13 @@ function createPropertyField(row: MGEngineUIPropertyRowDefinition, fieldKey: str
 function captureFocusedPropertyField(documentRef: Document): FocusedPropertyFieldSnapshot | null {
   const activeElement = documentRef.activeElement;
 
-  if (!(activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)) {
+  if (
+    !(
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement instanceof HTMLSelectElement
+    )
+  ) {
     return null;
   }
 
@@ -893,9 +935,13 @@ function captureFocusedPropertyField(documentRef: Document): FocusedPropertyFiel
   return {
     fieldKey,
     panelId,
-    selectionEnd: typeof activeElement.selectionEnd === "number" ? activeElement.selectionEnd : null,
-    selectionStart: typeof activeElement.selectionStart === "number" ? activeElement.selectionStart : null,
-    tagName: activeElement.tagName as "INPUT" | "TEXTAREA",
+    selectionEnd: "selectionEnd" in activeElement && typeof activeElement.selectionEnd === "number"
+      ? activeElement.selectionEnd
+      : null,
+    selectionStart: "selectionStart" in activeElement && typeof activeElement.selectionStart === "number"
+      ? activeElement.selectionStart
+      : null,
+    tagName: activeElement.tagName as "INPUT" | "SELECT" | "TEXTAREA",
     value: activeElement.value
   };
 }
@@ -923,6 +969,16 @@ function restoreFocusedPropertyField(
       field.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
     }
 
+    return;
+  }
+
+  if (snapshot.tagName === "SELECT") {
+    if (!(field instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    field.value = snapshot.value;
+    field.focus();
     return;
   }
 

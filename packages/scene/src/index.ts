@@ -1,3 +1,4 @@
+import type { EntityTemplateDefinition } from "@mge/core";
 import type { MGECModule } from "@mge/kernel";
 import { getRuntime, type Runtime, type RuntimeComponentLike, type RuntimeFrameContext } from "@mge/runtime";
 
@@ -163,8 +164,17 @@ const sceneModule: MGECModule = {
 
     ctx.extensions.register("mge:component-factory", {
       create: transformFromData,
+      displayName: "Transform",
+      icon: "codicon codicon-move",
       matches(component: unknown) {
         return component instanceof Transform;
+      },
+      schema: {
+        rotation: { step: 1, type: "number" },
+        scaleX: { min: 0.01, step: 0.1, type: "number" },
+        scaleY: { min: 0.01, step: 0.1, type: "number" },
+        x: { step: 1, type: "number" },
+        y: { step: 1, type: "number" }
       },
       serialize(component: unknown) {
         const transform = component as Transform;
@@ -178,6 +188,17 @@ const sceneModule: MGECModule = {
         };
       },
       type: "Transform"
+    });
+    ctx.extensions.register("mge:create-entity-template", {
+      create({ name, scene }: Parameters<EntityTemplateDefinition["create"]>[0]) {
+        const entity = scene.createEntity(name ?? "Empty Entity");
+        entity.addComponent(new Transform());
+        return entity;
+      },
+      description: "Create an empty entity with a Transform.",
+      icon: "codicon codicon-circle-large-outline",
+      id: "mge.entity.empty",
+      label: "Empty Entity"
     });
     ctx.services.provide("scene", sceneService, ctx.component.id);
     ctx.log.info(`Created active scene "${initialScene.name}" and registered Transform.`);

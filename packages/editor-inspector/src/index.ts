@@ -1,15 +1,18 @@
+import type { ComponentFactory, ComponentSchemaField } from "@mge/core";
 import type { Component, Entity } from "@mge/scene";
 import type { EditorProjectFile, EditorService } from "@mge/editor-core";
 import type { ECSService } from "@mge/ecs";
 import type { MGECModule } from "@mge/kernel";
 import type { MGEngineUIPropertyRowDefinition, MGEngineUIService } from "@mge/mgengineui";
-import type { ScriptComponent } from "@mge/scripting-ts";
+import type { ScriptComponent, ScriptRuntimeService } from "@mge/scripting-ts";
 
 interface ScriptPropertySyncService {
   createScript(path?: string): EditorProjectFile | null;
   getScriptEditableValues(path: string): Record<string, boolean | number | string>;
   updateScriptProperty(path: string, propertyName: string, value: boolean | number | string): boolean;
 }
+
+const SCRIPT_COMPONENT_TYPE = "Script";
 
 const editorInspectorModule: MGECModule = {
   id: "@mge/editor-inspector",
@@ -26,6 +29,9 @@ const editorInspectorModule: MGECModule = {
         const textEditor = ctx.services.has("text-editor")
           ? ctx.services.require<ScriptPropertySyncService>("text-editor")
           : null;
+        const scriptRuntime = ctx.services.has("script-runtime")
+          ? ctx.services.require<ScriptRuntimeService>("script-runtime")
+          : null;
         const entity = editor.getSelectedEntity();
         const stack = document.createElement("div");
         stack.className = "mge-stack";
@@ -41,13 +47,14 @@ const editorInspectorModule: MGECModule = {
         stack.append(renderEntityHeader(entity, editor, ecs, uiService, textEditor));
 
         for (const component of entity.components) {
+          const factory = findComponentFactory(ecs, component);
           const section = document.createElement("section");
           section.className = "mge-section mge-stack";
           const header = document.createElement("div");
           header.className = "mge-inline-actions";
 
           const title = document.createElement("strong");
-          title.textContent = component.constructor.name;
+          title.textContent = factory?.displayName ?? component.constructor.name;
           header.append(title);
           header.append(
             uiService.button.create({
@@ -65,7 +72,9 @@ const editorInspectorModule: MGECModule = {
             })
           );
           section.append(header);
-          section.append(uiService.propertyGrid.render(buildRows(component, editor, textEditor)));
+          section.append(
+            uiService.propertyGrid.render(buildRows(component, factory, editor, textEditor, scriptRuntime))
+          );
           stack.append(section);
         }
 
@@ -79,13 +88,31 @@ const editorInspectorModule: MGECModule = {
 
 function buildRows(
   component: Component,
+  factory: ComponentFactory | null,
   editor: EditorService,
-  textEditor: ScriptPropertySyncService | null
+  textEditor: ScriptPropertySyncService | null,
+  scriptRuntime: ScriptRuntimeService | null
 ): MGEngineUIPropertyRowDefinition[] {
   const rows: MGEngineUIPropertyRowDefinition[] = [];
+  const handledKeys = new Set<string>();
+
+  for (const [key, schemaField] of Object.entries(factory?.schema ?? {})) {
+    const currentValue = (component as unknown as Record<string, unknown>)[key];
+
+    if (
+      typeof currentValue !== "number" &&
+      typeof currentValue !== "string" &&
+      typeof currentValue !== "boolean"
+    ) {
+      continue;
+    }
+
+    rows.push(createSchemaRow(component, key, currentValue, schemaField, editor, textEditor, scriptRuntime));
+    handledKeys.add(key);
+  }
 
   for (const [key, value] of Object.entries(component)) {
-    if (key === "entity") {
+    if (key === "entity" || handledKeys.has(key)) {
       continue;
     }
 
@@ -94,7 +121,7 @@ function buildRows(
         kind: typeof value === "number" ? "number" : typeof value === "boolean" ? "boolean" : "text",
         label: key,
         onChange(nextValue) {
-          (component as unknown as Record<string, unknown>)[key] = nextValue;
+          applyDirectValue(component, key, nextValue, editor, textEditor, scriptRuntime);
           editor.refresh();
         },
         value
@@ -142,6 +169,109 @@ function buildRows(
   return rows;
 }
 
+function createSchemaRow(
+  component: Component,
+  key: string,
+  value: boolean | number | string,
+  schemaField: ComponentSchemaField,
+  editor: EditorService,
+  textEditor: ScriptPropertySyncService | null,
+  scriptRuntime: ScriptRuntimeService | null
+): MGEngineUIPropertyRowDefinition {
+  const kind = resolveRowKind(schemaField);
+  const options =
+    schemaField.type === "script"
+      ? listScriptFiles(editor).map((path) => ({ label: path.replace(/^\.\//, ""), value: path }))
+      : schemaField.type === "asset"
+        ? editor
+            .getProjectFiles()
+            .filter((file) => file.kind === "asset")
+            .map((file) => ({ label: file.path.replace(/^\.\//, ""), value: file.path }))
+        : schemaField.options;
+
+  if ((schemaField.type === "script" || schemaField.type === "asset") && typeof value === "string") {
+    if (!options?.some((option) => option.value === value)) {
+      options?.unshift({ label: value.replace(/^\.\//, ""), value });
+    }
+  }
+
+  return {
+    kind,
+    label: schemaField.label ?? key,
+    max: schemaField.max,
+    min: schemaField.min,
+    onChange(nextValue) {
+      applyDirectValue(component, key, nextValue, editor, textEditor, scriptRuntime);
+      editor.refresh();
+    },
+    options,
+    step: schemaField.step,
+    value
+  };
+}
+
+function applyDirectValue(
+  component: Component,
+  key: string,
+  nextValue: boolean | number | string,
+  editor: EditorService,
+  textEditor: ScriptPropertySyncService | null,
+  scriptRuntime: ScriptRuntimeService | null
+): void {
+  (component as unknown as Record<string, unknown>)[key] = nextValue;
+
+  if (component.constructor.name !== "ScriptComponent" || key !== "script") {
+    return;
+  }
+
+  const scriptComponent = component as ScriptComponent;
+
+  if (typeof nextValue !== "string") {
+    return;
+  }
+
+  const defaults = textEditor?.getScriptEditableValues(nextValue) ?? {};
+
+  for (const propertyKey of Object.keys(scriptComponent.properties)) {
+    delete scriptComponent.properties[propertyKey];
+  }
+
+  Object.assign(scriptComponent.properties, defaults);
+  scriptRuntime?.applyScriptProperties(nextValue, defaults);
+
+  try {
+    scriptRuntime?.reloadScript(nextValue);
+  } catch (error) {
+    editor.log("warn", `Could not reload "${nextValue}": ${String(error)}`, "@mge/editor-inspector");
+  }
+}
+
+function resolveRowKind(schemaField: ComponentSchemaField): MGEngineUIPropertyRowDefinition["kind"] {
+  switch (schemaField.type) {
+    case "boolean":
+      return "boolean";
+    case "color":
+      return "color";
+    case "enum":
+    case "asset":
+    case "script":
+      return "select";
+    case "number":
+      return "number";
+    case "string":
+    default:
+      return "text";
+  }
+}
+
+function findComponentFactory(ecs: ECSService, component: Component): ComponentFactory | null {
+  return (
+    ecs
+      .listComponentFactories()
+      .find((candidate) => candidate.matches?.(component) ?? candidate.type === component.constructor.name) ?? null
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, boolean | number | string> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -179,12 +309,11 @@ function renderEntityHeader(
     ui.button.create({
       label: "Add Component",
       onClick: () => {
-        const availableTypes = ecs
-          .listComponentFactories()
-          .map((factory) => factory.type)
-          .sort((left, right) => left.localeCompare(right));
+        const factories = [...ecs.listComponentFactories()].sort((left, right) =>
+          (left.displayName ?? left.type).localeCompare(right.displayName ?? right.type)
+        );
 
-        if (availableTypes.length === 0) {
+        if (factories.length === 0) {
           editor.log("warn", "No component factories are registered.", "@mge/editor-inspector");
           return;
         }
@@ -198,13 +327,13 @@ function renderEntityHeader(
             caption.textContent = `Add a component to "${entity.name}".`;
             modalStack.append(caption);
 
-            for (const componentType of availableTypes) {
+            for (const factory of factories) {
               modalStack.append(
                 modalUi.button.create({
-                  label: componentType,
+                  label: factory.displayName ?? factory.type,
                   onClick: () => {
                     addComponentForType({
-                      componentType,
+                      componentType: factory.type,
                       ecs,
                       editor,
                       entity,
@@ -247,7 +376,7 @@ function addComponentForType(options: {
 }): void {
   const { componentType, ecs, editor, entity, modalUi, textEditor } = options;
 
-  if (componentType !== "Script") {
+  if (componentType !== SCRIPT_COMPONENT_TYPE) {
     modalUi.modal.close();
     ecs.addComponent(entity, componentType);
     editor.log("info", `Added ${componentType} to "${entity.name}".`, "@mge/editor-inspector");
@@ -260,7 +389,7 @@ function addComponentForType(options: {
   if (scriptFiles.length === 0) {
     const created = createDefaultScriptFile(editor, entity, textEditor);
     modalUi.modal.close();
-    ecs.addComponent(entity, "Script", {
+    ecs.addComponent(entity, SCRIPT_COMPONENT_TYPE, {
       properties: created.properties,
       script: created.path
     });
@@ -286,7 +415,7 @@ function addComponentForType(options: {
             onClick: () => {
               const properties = textEditor?.getScriptEditableValues(scriptPath) ?? {};
               nextModalUi.modal.close();
-              ecs.addComponent(entity, "Script", {
+              ecs.addComponent(entity, SCRIPT_COMPONENT_TYPE, {
                 properties,
                 script: scriptPath
               });
@@ -304,7 +433,7 @@ function addComponentForType(options: {
           onClick: () => {
             const created = createDefaultScriptFile(editor, entity, textEditor);
             nextModalUi.modal.close();
-            ecs.addComponent(entity, "Script", {
+            ecs.addComponent(entity, SCRIPT_COMPONENT_TYPE, {
               properties: created.properties,
               script: created.path
             });

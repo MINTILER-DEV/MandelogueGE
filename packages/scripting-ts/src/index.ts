@@ -1,8 +1,8 @@
-import type { ComponentFactory, Script } from "@mge/core";
+import type { ComponentFactory, EntityTemplateDefinition, Script } from "@mge/core";
 import type { ECSService } from "@mge/ecs";
 import type { MGECModule } from "@mge/kernel";
 import type { Runtime, RuntimeFrameContext } from "@mge/runtime";
-import { Component } from "@mge/scene";
+import { Component, Transform } from "@mge/scene";
 
 export type ScriptConstructor = new () => Script;
 
@@ -260,8 +260,13 @@ const scriptingTsModule: MGECModule = {
     ctx.services.provide("scripting", scriptRuntime, ctx.component.id);
     ctx.services.require<ECSService>("ecs").registerComponentFactory({
       create: createScriptComponent,
+      displayName: "ScriptComponent",
+      icon: "codicon codicon-symbol-method",
       matches(component) {
         return component instanceof ScriptComponent;
+      },
+      schema: {
+        script: { type: "script" }
       },
       serialize(component) {
         const scriptComponent = component as ScriptComponent;
@@ -273,6 +278,31 @@ const scriptingTsModule: MGECModule = {
       },
       type: "Script"
     } satisfies ComponentFactory);
+    ctx.extensions.register("mge:create-entity-template", {
+      create({ name, scene, services }: Parameters<EntityTemplateDefinition["create"]>[0]) {
+        const ecs = services.require<ECSService>("ecs");
+        const entity = scene.createEntity(name ?? "Script Object");
+        const textEditor = services.has("text-editor")
+          ? services.require<{
+              createScript(path?: string): { path: string } | null;
+              getScriptEditableValues(path: string): Record<string, boolean | number | string>;
+            }>("text-editor")
+          : null;
+        const scriptPath = resolveTemplateScriptPath(name ?? entity.name);
+        const created = textEditor?.createScript(scriptPath);
+
+        entity.addComponent(new Transform());
+        ecs.addComponent(entity, "Script", {
+          properties: created ? textEditor?.getScriptEditableValues(created.path) ?? {} : {},
+          script: created?.path ?? scriptPath
+        });
+        return entity;
+      },
+      description: "Create an entity with a Transform and Script component.",
+      icon: "codicon codicon-symbol-method",
+      id: "mge.entity.script-object",
+      label: "Script Object"
+    });
     ctx.log.info(`Registered TypeScript scripting with ${scripts.size} script source(s).`);
   }
 };
@@ -286,6 +316,17 @@ function createReloadFrameContext(runtime: Runtime, scene: ReturnType<Runtime["g
     scene,
     services: runtime.services
   };
+}
+
+function resolveTemplateScriptPath(name: string): string {
+  const sanitized = name
+    .replace(/[^A-Za-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join("");
+  return `./scripts/${sanitized || "ScriptObject"}Controller.ts`;
 }
 
 export default scriptingTsModule;

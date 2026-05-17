@@ -1,5 +1,5 @@
 import type { MGECModule } from "@mge/kernel";
-import type { ComponentFactory } from "@mge/core";
+import type { ComponentFactory, EntityTemplateDefinition } from "@mge/core";
 import type { ECSService } from "@mge/ecs";
 import type { Canvas2DRendererService } from "@mge/renderer-canvas2d";
 import type { RuntimeFrameContext } from "@mge/runtime";
@@ -63,8 +63,15 @@ const demoSquareModule: MGECModule = {
 
     ecs.registerComponentFactory({
       create: createSquare,
+      displayName: "SquareComponent",
+      icon: "codicon codicon-primitive-square",
       matches(component) {
         return component instanceof SquareComponent;
+      },
+      schema: {
+        color: { type: "color" },
+        height: { min: 1, step: 1, type: "number" },
+        width: { min: 1, step: 1, type: "number" }
       },
       serialize(component) {
         const square = component as SquareComponent;
@@ -77,6 +84,19 @@ const demoSquareModule: MGECModule = {
       },
       type: "Square"
     } satisfies ComponentFactory);
+    ctx.extensions.register("mge:create-entity-template", {
+      create({ name, scene, services }: Parameters<EntityTemplateDefinition["create"]>[0]) {
+        const ecs = services.require<ECSService>("ecs");
+        const entity = scene.createEntity(name ?? "Square");
+        entity.addComponent(new Transform());
+        ecs.addComponent(entity, "Square");
+        return entity;
+      },
+      description: "Create a square renderable entity.",
+      icon: "codicon codicon-primitive-square",
+      id: "mge.entity.square",
+      label: "Square"
+    });
     ctx.log.info("Registered the Square component.");
   },
 

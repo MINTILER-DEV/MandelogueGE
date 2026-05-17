@@ -8,10 +8,42 @@ export interface KeyboardInputLike {
   keyDown(code: string): boolean;
 }
 
+export type ComponentSchemaFieldType = "asset" | "boolean" | "color" | "enum" | "number" | "script" | "string";
+
+export interface ComponentSchemaFieldOption {
+  label: string;
+  value: string;
+}
+
+export interface ComponentSchemaField {
+  default?: boolean | number | string;
+  icon?: string;
+  label?: string;
+  max?: number;
+  min?: number;
+  options?: ComponentSchemaFieldOption[];
+  step?: number;
+  type: ComponentSchemaFieldType;
+}
+
+export interface EntityTemplateDefinition {
+  create(context: {
+    name?: string;
+    scene: Scene;
+    services: ServiceRegistry;
+  }): Entity;
+  description?: string;
+  icon?: string;
+  id: string;
+  label: string;
+}
+
 export interface ComponentFactory {
   create(data?: Record<string, unknown>): Component;
   displayName?: string;
+  icon?: string;
   matches?(component: Component): boolean;
+  schema?: Record<string, ComponentSchemaField>;
   serialize?(component: Component): Record<string, unknown>;
   type: string;
 }
